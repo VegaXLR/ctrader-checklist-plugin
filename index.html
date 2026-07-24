@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>cTrader Checklist</title>
+
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <main class="plugin-shell">
+        <section class="checklist-card">
+            <header class="plugin-header">
+                <h1>cTrader Checklist</h1>
+
+                <button id="themeToggle" class="theme-toggle" type="button">
+                    Dark Mode
+                </button>
+            </header>
+
+            <section class="list-wrapper">
+                <div id="checklistItems" class="checklist-items"></div>
+            </section>
+
+            <section class="add-section">
+                <button id="addItemButton" class="add-button" type="button">
+                    + Add new item
+                </button>
+            </section>
+
+            <footer class="plugin-footer">
+                <a href="https://ctraderltd.pxf.io/ZVLLWR" target="_blank" rel="noopener noreferrer">
+                    Made by VegaXLR
+                </a>
+            </footer>
+        </section>
+    </main>
+
+    <section id="itemModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal">
+            <h2 id="modalTitle">Add checklist item</h2>
+
+            <input id="itemInput" type="text" maxlength="160" placeholder="Type your checklist item..." />
+
+            <div class="modal-actions">
+                <button id="cancelModalButton" class="modal-button secondary" type="button">
+                    Cancel
+                </button>
+
+                <button id="saveItemButton" class="modal-button primary" type="button">
+                    Save
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
