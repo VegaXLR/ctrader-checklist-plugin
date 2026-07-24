@@ -1,54 +1,11 @@
 const STORAGE_DATA_KEY = "vegaxlr_ctrader_multi_checklists_data";
 const STORAGE_ACTIVE_LIST_KEY = "vegaxlr_ctrader_active_checklist_id";
 const STORAGE_NOTES_OPEN_KEY = "vegaxlr_ctrader_notes_open";
+const STORAGE_DB_NAME = "vegaxlr_ctrader_checklist_storage";
+const STORAGE_DB_VERSION = 1;
+const STORAGE_OBJECT_STORE = "keyValueStorage";
 
-/**
- * Reads a persisted value from the most durable storage available in the host.
- *
- * @param {string} key Storage key.
- * @returns {string|null} Persisted value, or null when not found.
- */
-function readStorageValue(key) {
-    try {
-        if (window.ctrader && window.ctrader.storage && typeof window.ctrader.storage.getItem === "function") {
-            const hostValue = window.ctrader.storage.getItem(key);
 
-            if (hostValue !== null && hostValue !== undefined) {
-                return hostValue;
-            }
-        }
-    } catch {
-        // Fall back to localStorage.
-    }
-
-    try {
-        return localStorage.getItem(key);
-    } catch {
-        return null;
-    }
-}
-
-/**
- * Persists a value to every supported storage layer.
- *
- * @param {string} key Storage key.
- * @param {string} value Value to persist.
- */
-function writeStorageValue(key, value) {
-    try {
-        localStorage.setItem(key, value);
-    } catch {
-        // Ignore localStorage write failures.
-    }
-
-    try {
-        if (window.ctrader && window.ctrader.storage && typeof window.ctrader.storage.setItem === "function") {
-            window.ctrader.storage.setItem(key, value);
-        }
-    } catch {
-        // Ignore host storage write failures.
-    }
-}
 
 const checklistCard = document.getElementById("checklistCard");
 const pluginTitle = document.getElementById("pluginTitle");
@@ -180,6 +137,156 @@ function generateId() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
+/**
+ * Opens the persistent IndexedDB storage used by the checklist plugin.
+ *
+ * @returns {Promise<IDBDatabase>} Opened IndexedDB database.
+ */
+function openPersistentDatabase() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(STORAGE_DB_NAME, STORAGE_DB_VERSION);
+
+        request.onupgradeneeded = () => {
+            const database = request.result;
+
+            if (!database.objectStoreNames.contains(STORAGE_OBJECT_STORE)) {
+                database.createObjectStore(STORAGE_OBJECT_STORE);
+            }
+        };
+
+        request.onsuccess = () => {
+            resolve(request.result);
+        };
+
+        request.onerror = () => {
+            reject(request.error);
+        };
+    });
+}
+
+/**
+ * Reads a value from IndexedDB.
+ *
+ * @param {string} key Storage key.
+ * @returns {Promise<string|null>} Stored value, or null when not found.
+ */
+async function readIndexedDbValue(key) {
+    try {
+        const database = await openPersistentDatabase();
+
+        return await new Promise((resolve, reject) => {
+            const transaction = database.transaction(STORAGE_OBJECT_STORE, "readonly");
+            const store = transaction.objectStore(STORAGE_OBJECT_STORE);
+            const request = store.get(key);
+
+            request.onsuccess = () => {
+                resolve(request.result ?? null);
+            };
+
+            request.onerror = () => {
+                reject(request.error);
+            };
+
+            transaction.oncomplete = () => {
+                database.close();
+            };
+        });
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Writes a value to IndexedDB.
+ *
+ * @param {string} key Storage key.
+ * @param {string} value Value to persist.
+ * @returns {Promise<void>} Promise resolved after the write attempt.
+ */
+async function writeIndexedDbValue(key, value) {
+    try {
+        const database = await openPersistentDatabase();
+
+        await new Promise((resolve, reject) => {
+            const transaction = database.transaction(STORAGE_OBJECT_STORE, "readwrite");
+            const store = transaction.objectStore(STORAGE_OBJECT_STORE);
+            const request = store.put(value, key);
+
+            request.onsuccess = () => {
+                resolve();
+            };
+
+            request.onerror = () => {
+                reject(request.error);
+            };
+
+            transaction.oncomplete = () => {
+                database.close();
+            };
+        });
+    } catch {
+        // Ignore IndexedDB write failures.
+    }
+}
+
+/**
+ * Reads a persisted value from localStorage.
+ *
+ * @param {string} key Storage key.
+ * @returns {string|null} Stored value, or null when not found.
+ */
+function readLocalStorageValue(key) {
+    try {
+        return localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Writes a value to localStorage.
+ *
+ * @param {string} key Storage key.
+ * @param {string} value Value to persist.
+ */
+function writeLocalStorageValue(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch {
+        // Ignore localStorage write failures.
+    }
+}
+
+/**
+ * Reads a persisted value from the strongest available storage.
+ *
+ * @param {string} key Storage key.
+ * @returns {Promise<string|null>} Persisted value, or null when not found.
+ */
+async function readStorageValue(key) {
+    const indexedDbValue = await readIndexedDbValue(key);
+
+    if (indexedDbValue !== null && indexedDbValue !== undefined) {
+        return indexedDbValue;
+    }
+
+    return readLocalStorageValue(key);
+}
+
+/**
+ * Persists a value to all supported storage layers.
+ *
+ * @param {string} key Storage key.
+ * @param {string} value Value to persist.
+ * @returns {Promise<void>} Promise resolved after all write attempts.
+ */
+async function writeStorageValue(key, value) {
+    writeLocalStorageValue(key, value);
+    await writeIndexedDbValue(key, value);
+}
+
+
+
 function createDefaultData() {
     const defaultChecklistId = generateId();
 
@@ -230,13 +337,22 @@ function normalizeImportedData(data) {
     };
 }
 
-function loadData() {
+async function loadData() {
+    let hasStoredData = false;
+
     try {
-        const storedData = readStorageValue(STORAGE_DATA_KEY);
+        const storedData = await readStorageValue(STORAGE_DATA_KEY);
 
         if (storedData) {
             const parsedData = JSON.parse(storedData);
-            appData = normalizeImportedData(parsedData) || createDefaultData();
+            const normalizedData = normalizeImportedData(parsedData);
+
+            if (normalizedData) {
+                appData = normalizedData;
+                hasStoredData = true;
+            } else {
+                appData = createDefaultData();
+            }
         } else {
             appData = createDefaultData();
         }
@@ -244,25 +360,32 @@ function loadData() {
         appData = createDefaultData();
     }
 
-    const storedActiveId = readStorageValue(STORAGE_ACTIVE_LIST_KEY);
+    const storedActiveId = await readStorageValue(STORAGE_ACTIVE_LIST_KEY);
     const activeExists = appData.checklists.some((list) => list.id === storedActiveId);
 
     activeChecklistId = activeExists ? storedActiveId : appData.checklists[0].id;
 
-    notesOpen = readStorageValue(STORAGE_NOTES_OPEN_KEY) === "true";
+    notesOpen = await readStorageValue(STORAGE_NOTES_OPEN_KEY) === "true";
 
-    saveData();
-    saveActiveChecklist();
+    if (hasStoredData) {
+        saveActiveChecklist();
+        return;
+    }
+
+    if (!readLocalStorageValue(STORAGE_DATA_KEY)) {
+        saveData();
+        saveActiveChecklist();
+    }
 }
 
 function saveData() {
     writeStorageValue(STORAGE_DATA_KEY, JSON.stringify(appData));
 }
 
+Copiar
 function saveActiveChecklist() {
     writeStorageValue(STORAGE_ACTIVE_LIST_KEY, activeChecklistId);
 }
-
 
 function getActiveChecklist() {
     return appData.checklists.find((list) => list.id === activeChecklistId) || appData.checklists[0];
@@ -974,6 +1097,13 @@ notesToggleButton.addEventListener("click", toggleNotesSection);
 
 notesTextarea.addEventListener("input", saveActiveChecklistNotes);
 
-loadData();
-renderAll();
+/**
+ * Initializes the checklist plugin after persistent storage is loaded.
+ */
+async function initializePlugin() {
+    await loadData();
+    renderAll();
+}
+
+initializePlugin();
 
