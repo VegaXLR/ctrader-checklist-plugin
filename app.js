@@ -51,6 +51,7 @@ function writeStorageValue(key, value) {
 }
 
 const checklistCard = document.getElementById("checklistCard");
+const pluginTitle = document.getElementById("pluginTitle");
 const progressCounter = document.getElementById("progressCounter");
 const readyStatus = document.getElementById("readyStatus");
 const panelNotice = document.getElementById("panelNotice");
@@ -313,9 +314,11 @@ function updateProgressState() {
 
     checklistCard.classList.remove("ready", "required-ready");
     readyStatus.classList.remove("visible", "complete", "required");
+    pluginTitle.classList.remove("hidden");
 
     if (progress.isFullyComplete) {
         checklistCard.classList.add("ready");
+        pluginTitle.classList.add("hidden");
         readyStatus.classList.add("visible", "complete");
         readyStatus.textContent = "✓ Checklist complete";
         return;
@@ -323,6 +326,7 @@ function updateProgressState() {
 
     if (progress.isRequiredComplete) {
         checklistCard.classList.add("required-ready");
+        pluginTitle.classList.add("hidden");
         readyStatus.classList.add("visible", "required");
         readyStatus.textContent = "✓ Required items complete";
     }
