@@ -4,8 +4,7 @@ const STORAGE_NOTES_OPEN_KEY = "vegaxlr_ctrader_notes_open";
 const STORAGE_DB_NAME = "vegaxlr_ctrader_checklist_storage";
 const STORAGE_DB_VERSION = 1;
 const STORAGE_OBJECT_STORE = "keyValueStorage";
-
-
+const STORAGE_TIMEOUT_MS = 300;
 
 const checklistCard = document.getElementById("checklistCard");
 const pluginTitle = document.getElementById("pluginTitle");
@@ -138,6 +137,24 @@ function generateId() {
 }
 
 /**
+ * Rejects a storage operation when it takes too long.
+ *
+ * @param {Promise<*>} promise Promise to guard.
+ * @param {number} timeoutMs Timeout in milliseconds.
+ * @returns {Promise<*>} Original promise result.
+ */
+function withStorageTimeout(promise, timeoutMs = STORAGE_TIMEOUT_MS) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => {
+            setTimeout(() => {
+                reject(new Error("Storage operation timed out."));
+            }, timeoutMs);
+        })
+    ]);
+}
+
+/**
  * Opens the persistent IndexedDB storage used by the checklist plugin.
  *
  * @returns {Promise<IDBDatabase>} Opened IndexedDB database.
@@ -172,29 +189,37 @@ function openPersistentDatabase() {
  */
 async function readIndexedDbValue(key) {
     try {
-        const database = await openPersistentDatabase();
+        return await withStorageTimeout((async () => {
+            const database = await openPersistentDatabase();
 
-        return await new Promise((resolve, reject) => {
-            const transaction = database.transaction(STORAGE_OBJECT_STORE, "readonly");
-            const store = transaction.objectStore(STORAGE_OBJECT_STORE);
-            const request = store.get(key);
+            return await new Promise((resolve, reject) => {
+                const transaction = database.transaction(STORAGE_OBJECT_STORE, "readonly");
+                const store = transaction.objectStore(STORAGE_OBJECT_STORE);
+                const request = store.get(key);
 
-            request.onsuccess = () => {
-                resolve(request.result ?? null);
-            };
+                request.onsuccess = () => {
+                    resolve(request.result ?? null);
+                };
 
-            request.onerror = () => {
-                reject(request.error);
-            };
+                request.onerror = () => {
+                    reject(request.error);
+                };
 
-            transaction.oncomplete = () => {
-                database.close();
-            };
-        });
+                transaction.oncomplete = () => {
+                    database.close();
+                };
+
+                transaction.onerror = () => {
+                    database.close();
+                    reject(transaction.error);
+                };
+            });
+        })());
     } catch {
         return null;
     }
 }
+
 
 /**
  * Writes a value to IndexedDB.
@@ -205,29 +230,37 @@ async function readIndexedDbValue(key) {
  */
 async function writeIndexedDbValue(key, value) {
     try {
-        const database = await openPersistentDatabase();
+        await withStorageTimeout((async () => {
+            const database = await openPersistentDatabase();
 
-        await new Promise((resolve, reject) => {
-            const transaction = database.transaction(STORAGE_OBJECT_STORE, "readwrite");
-            const store = transaction.objectStore(STORAGE_OBJECT_STORE);
-            const request = store.put(value, key);
+            await new Promise((resolve, reject) => {
+                const transaction = database.transaction(STORAGE_OBJECT_STORE, "readwrite");
+                const store = transaction.objectStore(STORAGE_OBJECT_STORE);
+                const request = store.put(value, key);
 
-            request.onsuccess = () => {
-                resolve();
-            };
+                request.onsuccess = () => {
+                    resolve();
+                };
 
-            request.onerror = () => {
-                reject(request.error);
-            };
+                request.onerror = () => {
+                    reject(request.error);
+                };
 
-            transaction.oncomplete = () => {
-                database.close();
-            };
-        });
+                transaction.oncomplete = () => {
+                    database.close();
+                };
+
+                transaction.onerror = () => {
+                    database.close();
+                    reject(transaction.error);
+                };
+            });
+        })());
     } catch {
         // Ignore IndexedDB write failures.
     }
 }
+
 
 /**
  * Reads a persisted value from localStorage.
@@ -338,21 +371,12 @@ function normalizeImportedData(data) {
 }
 
 async function loadData() {
-    let hasStoredData = false;
-
     try {
         const storedData = await readStorageValue(STORAGE_DATA_KEY);
 
         if (storedData) {
             const parsedData = JSON.parse(storedData);
-            const normalizedData = normalizeImportedData(parsedData);
-
-            if (normalizedData) {
-                appData = normalizedData;
-                hasStoredData = true;
-            } else {
-                appData = createDefaultData();
-            }
+            appData = normalizeImportedData(parsedData) || createDefaultData();
         } else {
             appData = createDefaultData();
         }
@@ -360,23 +384,29 @@ async function loadData() {
         appData = createDefaultData();
     }
 
-    const storedActiveId = await readStorageValue(STORAGE_ACTIVE_LIST_KEY);
-    const activeExists = appData.checklists.some((list) => list.id === storedActiveId);
-
-    activeChecklistId = activeExists ? storedActiveId : appData.checklists[0].id;
-
-    notesOpen = await readStorageValue(STORAGE_NOTES_OPEN_KEY) === "true";
-
-    if (hasStoredData) {
-        saveActiveChecklist();
-        return;
+    if (!appData || !Array.isArray(appData.checklists) || appData.checklists.length === 0) {
+        appData = createDefaultData();
     }
 
-    if (!readLocalStorageValue(STORAGE_DATA_KEY)) {
-        saveData();
-        saveActiveChecklist();
+    try {
+        const storedActiveId = await readStorageValue(STORAGE_ACTIVE_LIST_KEY);
+        const activeExists = appData.checklists.some((list) => list.id === storedActiveId);
+
+        activeChecklistId = activeExists ? storedActiveId : appData.checklists[0].id;
+    } catch {
+        activeChecklistId = appData.checklists[0].id;
     }
+
+    try {
+        notesOpen = await readStorageValue(STORAGE_NOTES_OPEN_KEY) === "true";
+    } catch {
+        notesOpen = false;
+    }
+
+    saveData();
+    saveActiveChecklist();
 }
+
 
 function saveData() {
     writeStorageValue(STORAGE_DATA_KEY, JSON.stringify(appData));
@@ -1098,12 +1128,25 @@ notesToggleButton.addEventListener("click", toggleNotesSection);
 notesTextarea.addEventListener("input", saveActiveChecklistNotes);
 
 /**
- * Initializes the checklist plugin after persistent storage is loaded.
+ * Initializes the checklist plugin after storage loading finishes or fails.
  */
 async function initializePlugin() {
-    await loadData();
+    try {
+        await loadData();
+    } catch {
+        appData = createDefaultData();
+        activeChecklistId = appData.checklists[0].id;
+        notesOpen = false;
+    }
+
+    if (!appData || !Array.isArray(appData.checklists) || appData.checklists.length === 0) {
+        appData = createDefaultData();
+        activeChecklistId = appData.checklists[0].id;
+    }
+
     renderAll();
 }
 
 initializePlugin();
+
 
