@@ -2,6 +2,54 @@ const STORAGE_DATA_KEY = "vegaxlr_ctrader_multi_checklists_data";
 const STORAGE_ACTIVE_LIST_KEY = "vegaxlr_ctrader_active_checklist_id";
 const STORAGE_NOTES_OPEN_KEY = "vegaxlr_ctrader_notes_open";
 
+/**
+ * Reads a persisted value from the most durable storage available in the host.
+ *
+ * @param {string} key Storage key.
+ * @returns {string|null} Persisted value, or null when not found.
+ */
+function readStorageValue(key) {
+    try {
+        if (window.ctrader && window.ctrader.storage && typeof window.ctrader.storage.getItem === "function") {
+            const hostValue = window.ctrader.storage.getItem(key);
+
+            if (hostValue !== null && hostValue !== undefined) {
+                return hostValue;
+            }
+        }
+    } catch {
+        // Fall back to localStorage.
+    }
+
+    try {
+        return localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Persists a value to every supported storage layer.
+ *
+ * @param {string} key Storage key.
+ * @param {string} value Value to persist.
+ */
+function writeStorageValue(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch {
+        // Ignore localStorage write failures.
+    }
+
+    try {
+        if (window.ctrader && window.ctrader.storage && typeof window.ctrader.storage.setItem === "function") {
+            window.ctrader.storage.setItem(key, value);
+        }
+    } catch {
+        // Ignore host storage write failures.
+    }
+}
+
 const checklistCard = document.getElementById("checklistCard");
 const progressCounter = document.getElementById("progressCounter");
 const readyStatus = document.getElementById("readyStatus");
@@ -27,10 +75,6 @@ const untickAllButton = document.getElementById("untickAllButton");
 const notesSection = document.getElementById("notesSection");
 const notesToggleButton = document.getElementById("notesToggleButton");
 const notesTextarea = document.getElementById("notesTextarea");
-
-const exportButton = document.getElementById("exportButton");
-const importButton = document.getElementById("importButton");
-const importFileInput = document.getElementById("importFileInput");
 
 const itemModal = document.getElementById("itemModal");
 const modalTitle = document.getElementById("modalTitle");
@@ -187,7 +231,7 @@ function normalizeImportedData(data) {
 
 function loadData() {
     try {
-        const storedData = localStorage.getItem(STORAGE_DATA_KEY);
+        const storedData = readStorageValue(STORAGE_DATA_KEY);
 
         if (storedData) {
             const parsedData = JSON.parse(storedData);
@@ -199,24 +243,25 @@ function loadData() {
         appData = createDefaultData();
     }
 
-    const storedActiveId = localStorage.getItem(STORAGE_ACTIVE_LIST_KEY);
+    const storedActiveId = readStorageValue(STORAGE_ACTIVE_LIST_KEY);
     const activeExists = appData.checklists.some((list) => list.id === storedActiveId);
 
     activeChecklistId = activeExists ? storedActiveId : appData.checklists[0].id;
 
-    notesOpen = localStorage.getItem(STORAGE_NOTES_OPEN_KEY) === "true";
+    notesOpen = readStorageValue(STORAGE_NOTES_OPEN_KEY) === "true";
 
     saveData();
     saveActiveChecklist();
 }
 
 function saveData() {
-    localStorage.setItem(STORAGE_DATA_KEY, JSON.stringify(appData));
+    writeStorageValue(STORAGE_DATA_KEY, JSON.stringify(appData));
 }
 
 function saveActiveChecklist() {
-    localStorage.setItem(STORAGE_ACTIVE_LIST_KEY, activeChecklistId);
+    writeStorageValue(STORAGE_ACTIVE_LIST_KEY, activeChecklistId);
 }
+
 
 function getActiveChecklist() {
     return appData.checklists.find((list) => list.id === activeChecklistId) || appData.checklists[0];
@@ -752,74 +797,6 @@ function createChecklistFromTemplate() {
     closeTemplateModal();
 }
 
-function exportChecklists() {
-    const exportData = {
-        version: 3,
-        exportedAt: new Date().toISOString(),
-        source: "VegaXLR Checklist",
-        checklists: appData.checklists
-    };
-
-    const json = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([json], {
-        type: "application/json"
-    });
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    const date = new Date().toISOString().slice(0, 10);
-
-    link.href = url;
-    link.download = `vegaxlr-ctrader-checklists-${date}.json`;
-    link.click();
-
-    URL.revokeObjectURL(url);
-
-    showPanelNotice("Checklist backup exported.", "success");
-
-}
-
-function importChecklistsFromFile(file) {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-        try {
-            const parsedData = JSON.parse(reader.result);
-            const normalizedData = normalizeImportedData(parsedData);
-
-            if (!normalizedData) {
-                showPanelNotice("Invalid checklist backup file.", "error");
-                importFileInput.value = "";
-                return;
-            }
-
-            openConfirmModal({
-                title: "Import checklists",
-                message: "Importing this file will replace your current checklists. Continue?",
-                confirmText: "Import",
-                danger: false,
-                onConfirm: () => {
-                    appData = normalizedData;
-                    activeChecklistId = appData.checklists[0].id;
-
-                    saveData();
-                    saveActiveChecklist();
-                    renderAll();
-
-                    importFileInput.value = "";
-                    showPanelNotice("Checklists imported successfully.", "success");
-                }
-            });
-        } catch {
-            showPanelNotice("Could not read this file. Please select a valid JSON backup.", "error");
-            importFileInput.value = "";
-        }
-    };
-
-    reader.readAsText(file);
-}
-
 function showPanelNotice(message, type = "info") {
     if (noticeTimeoutId) {
         clearTimeout(noticeTimeoutId);
@@ -869,7 +846,7 @@ function runPendingConfirmAction() {
 function toggleNotesSection() {
     notesOpen = !notesOpen;
 
-    localStorage.setItem(STORAGE_NOTES_OPEN_KEY, String(notesOpen));
+    writeStorageValue(STORAGE_NOTES_OPEN_KEY, String(notesOpen));
     renderNotes();
 }
 
@@ -904,20 +881,6 @@ newChecklistButton.addEventListener("click", openTemplateModal);
 renameChecklistButton.addEventListener("click", openRenameChecklistModal);
 
 duplicateChecklistButton.addEventListener("click", duplicateActiveChecklist);
-
-exportButton.addEventListener("click", exportChecklists);
-
-importButton.addEventListener("click", () => {
-    importFileInput.click();
-});
-
-importFileInput.addEventListener("change", () => {
-    const file = importFileInput.files[0];
-
-    if (file) {
-        importChecklistsFromFile(file);
-    }
-});
 
 deleteChecklistButton.addEventListener("click", deleteActiveChecklist);
 

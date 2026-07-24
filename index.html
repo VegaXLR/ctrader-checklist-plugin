@@ -15,15 +15,15 @@
         <section id="checklistCard" class="checklist-card">
             <header class="plugin-header">
                 <div class="title-row">
+                    <div id="readyStatus" class="ready-status">
+                        ✓ Checklist complete
+                    </div>
+
                     <h1>Checklist</h1>
 
                     <div id="progressCounter" class="progress-counter">
                         0/0
                     </div>
-                </div>
-
-                <div id="readyStatus" class="ready-status">
-                    ✓ Checklist complete
                 </div>
 
                 <div id="panelNotice" class="panel-notice" aria-live="polite"></div>
@@ -46,20 +46,11 @@
                         ⧉
                     </button>
 
-                    <button id="exportButton" class="header-icon-button" type="button" title="Export all checklists">
-                        ⇩
-                    </button>
-
-                    <button id="importButton" class="header-icon-button" type="button" title="Import checklists">
-                        ⇧
-                    </button>
-
                     <button id="deleteChecklistButton" class="header-icon-button danger" type="button"
                         title="Delete selected checklist">
                         ×
                     </button>
 
-                    <input id="importFileInput" type="file" accept="application/json,.json" hidden />
                 </div>
 
                 <div class="bulk-actions">
