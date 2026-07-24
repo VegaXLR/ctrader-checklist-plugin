@@ -4,6 +4,13 @@ const STORAGE_ACTIVE_LIST_KEY = "vegaxlr_ctrader_active_checklist_id";
 const checklistCard = document.getElementById("checklistCard");
 const progressCounter = document.getElementById("progressCounter");
 const readyStatus = document.getElementById("readyStatus");
+const panelNotice = document.getElementById("panelNotice");
+
+const confirmModal = document.getElementById("confirmModal");
+const confirmTitle = document.getElementById("confirmTitle");
+const confirmMessage = document.getElementById("confirmMessage");
+const cancelConfirmButton = document.getElementById("cancelConfirmButton");
+const confirmActionButton = document.getElementById("confirmActionButton");
 
 const checklistSelect = document.getElementById("checklistSelect");
 const newChecklistButton = document.getElementById("newChecklistButton");
@@ -112,6 +119,8 @@ let appData = {
 let activeChecklistId = null;
 let editingItemId = null;
 let draggedItemId = null;
+let pendingConfirmAction = null;
+let noticeTimeoutId = null;
 
 function generateId() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -610,26 +619,29 @@ function duplicateActiveChecklist() {
 
 function deleteActiveChecklist() {
     if (appData.checklists.length <= 1) {
+        showPanelNotice("You must keep at least one checklist.", "info");
         return;
     }
 
     const activeChecklist = getActiveChecklist();
 
-    const confirmed = window.confirm(
-        `Delete checklist "${activeChecklist.name}"? This cannot be undone.`
-    );
+    openConfirmModal({
+        title: "Delete checklist",
+        message: `Delete "${activeChecklist.name}"? This cannot be undone.`,
+        confirmText: "Delete",
+        danger: true,
+        onConfirm: () => {
+            appData.checklists = appData.checklists.filter((list) => list.id !== activeChecklistId);
 
-    if (!confirmed) {
-        return;
-    }
+            activeChecklistId = appData.checklists[0].id;
 
-    appData.checklists = appData.checklists.filter((list) => list.id !== activeChecklistId);
+            saveData();
+            saveActiveChecklist();
+            renderAll();
 
-    activeChecklistId = appData.checklists[0].id;
-
-    saveData();
-    saveActiveChecklist();
-    renderAll();
+            showPanelNotice("Checklist deleted.", "success");
+        }
+    });
 }
 
 function renderTemplateOptions() {
@@ -709,7 +721,7 @@ function exportChecklists() {
     const exportData = {
         version: 3,
         exportedAt: new Date().toISOString(),
-        source: "VegaXLR cTrader Checklist",
+        source: "VegaXLR Checklist",
         checklists: appData.checklists
     };
 
@@ -728,6 +740,9 @@ function exportChecklists() {
     link.click();
 
     URL.revokeObjectURL(url);
+
+    showPanelNotice("Checklist backup exported.", "success");
+
 }
 
 function importChecklistsFromFile(file) {
@@ -739,34 +754,81 @@ function importChecklistsFromFile(file) {
             const normalizedData = normalizeImportedData(parsedData);
 
             if (!normalizedData) {
-                window.alert("Invalid checklist backup file.");
+                showPanelNotice("Invalid checklist backup file.", "error");
+                importFileInput.value = "";
                 return;
             }
 
-            const confirmed = window.confirm(
-                "Importing this file will replace your current checklists. Continue?"
-            );
+            openConfirmModal({
+                title: "Import checklists",
+                message: "Importing this file will replace your current checklists. Continue?",
+                confirmText: "Import",
+                danger: false,
+                onConfirm: () => {
+                    appData = normalizedData;
+                    activeChecklistId = appData.checklists[0].id;
 
-            if (!confirmed) {
-                return;
-            }
+                    saveData();
+                    saveActiveChecklist();
+                    renderAll();
 
-            appData = normalizedData;
-            activeChecklistId = appData.checklists[0].id;
-
-            saveData();
-            saveActiveChecklist();
-            renderAll();
-
-            window.alert("Checklists imported successfully.");
+                    importFileInput.value = "";
+                    showPanelNotice("Checklists imported successfully.", "success");
+                }
+            });
         } catch {
-            window.alert("Could not read this file. Please select a valid JSON backup.");
-        } finally {
+            showPanelNotice("Could not read this file. Please select a valid JSON backup.", "error");
             importFileInput.value = "";
         }
     };
 
     reader.readAsText(file);
+}
+
+function showPanelNotice(message, type = "info") {
+    if (noticeTimeoutId) {
+        clearTimeout(noticeTimeoutId);
+    }
+
+    panelNotice.textContent = message;
+    panelNotice.className = `panel-notice visible ${type}`;
+
+    noticeTimeoutId = setTimeout(() => {
+        panelNotice.className = "panel-notice";
+        panelNotice.textContent = "";
+    }, 3500);
+}
+
+function openConfirmModal({ title, message, confirmText = "Confirm", danger = true, onConfirm }) {
+    pendingConfirmAction = typeof onConfirm === "function" ? onConfirm : null;
+
+    confirmTitle.textContent = title;
+    confirmMessage.textContent = message;
+    confirmActionButton.textContent = confirmText;
+
+    confirmActionButton.className = danger
+        ? "modal-button danger"
+        : "modal-button primary";
+
+    confirmModal.classList.add("visible");
+    confirmModal.setAttribute("aria-hidden", "false");
+}
+
+function closeConfirmModal() {
+    pendingConfirmAction = null;
+
+    confirmModal.classList.remove("visible");
+    confirmModal.setAttribute("aria-hidden", "true");
+}
+
+function runPendingConfirmAction() {
+    const action = pendingConfirmAction;
+
+    closeConfirmModal();
+
+    if (action) {
+        action();
+    }
 }
 
 checklistSelect.addEventListener("change", () => {
@@ -863,6 +925,23 @@ templateModal.addEventListener("click", (event) => {
         closeTemplateModal();
     }
 });
+
+cancelConfirmButton.addEventListener("click", closeConfirmModal);
+
+confirmActionButton.addEventListener("click", runPendingConfirmAction);
+
+confirmModal.addEventListener("click", (event) => {
+    if (event.target === confirmModal) {
+        closeConfirmModal();
+    }
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && confirmModal.classList.contains("visible")) {
+        closeConfirmModal();
+    }
+});
+
 
 loadData();
 renderAll();

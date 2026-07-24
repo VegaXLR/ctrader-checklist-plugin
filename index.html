@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>cTrader Checklist</title>
+    <title>Checklist</title>
 
     <link rel="stylesheet" href="style.css" />
 </head>
@@ -15,7 +15,7 @@
         <section id="checklistCard" class="checklist-card">
             <header class="plugin-header">
                 <div class="title-row">
-                    <h1>cTrader Checklist</h1>
+                    <h1>Checklist</h1>
 
                     <div id="progressCounter" class="progress-counter">
                         0/0
@@ -25,6 +25,8 @@
                 <div id="readyStatus" class="ready-status">
                     ✓ Checklist complete
                 </div>
+
+                <div id="panelNotice" class="panel-notice" aria-live="polite"></div>
 
                 <div class="list-controls">
                     <select id="checklistSelect" class="checklist-select" title="Select checklist"></select>
@@ -148,6 +150,27 @@
             </div>
         </div>
     </section>
+
+    <section id="confirmModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal">
+            <h2 id="confirmTitle">Confirm action</h2>
+
+            <p id="confirmMessage" class="confirm-message">
+                Are you sure?
+            </p>
+
+            <div class="modal-actions">
+                <button id="cancelConfirmButton" class="modal-button secondary" type="button">
+                    Cancel
+                </button>
+
+                <button id="confirmActionButton" class="modal-button danger" type="button">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </section>
+
 
     <script src="app.js"></script>
 </body>
