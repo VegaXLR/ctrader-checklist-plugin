@@ -1,4 +1,6 @@
 :root {
+    color-scheme: light dark;
+
     --page-bg: #f1f3f6;
     --card-bg: #ffffff;
     --text-main: #1d2430;
@@ -20,26 +22,28 @@
     --checked-text: #8a94a6;
 }
 
-body.dark {
-    --page-bg: #202020;
-    --card-bg: #2b2b2b;
-    --text-main: #f0f0f0;
-    --text-muted: #b9b9b9;
-    --border: #444444;
+@media (prefers-color-scheme: dark) {
+    :root {
+        --page-bg: #202020;
+        --card-bg: #2b2b2b;
+        --text-main: #f0f0f0;
+        --text-muted: #b9b9b9;
+        --border: #444444;
 
-    --accent: #00c46a;
-    --accent-hover: #00ad5e;
+        --accent: #00c46a;
+        --accent-hover: #00ad5e;
 
-    --button-bg: #383838;
-    --button-hover: #464646;
+        --button-bg: #383838;
+        --button-hover: #464646;
 
-    --danger: #ff6675;
-    --danger-hover: #e14f5d;
+        --danger: #ff6675;
+        --danger-hover: #e14f5d;
 
-    --footer-link: #00c46a;
+        --footer-link: #00c46a;
 
-    --shadow: rgba(0, 0, 0, 0.35);
-    --checked-text: #8e8e8e;
+        --shadow: rgba(0, 0, 0, 0.35);
+        --checked-text: #8e8e8e;
+    }
 }
 
 * {
@@ -64,6 +68,12 @@ body {
     transition:
         background 0.2s ease,
         color 0.2s ease;
+}
+
+button,
+select,
+input {
+    font-family: inherit;
 }
 
 .plugin-shell {
@@ -91,12 +101,17 @@ body {
 
 .plugin-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
     gap: 8px;
 
     padding: 10px 10px 8px;
     border-bottom: 1px solid var(--border);
+}
+
+.title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .plugin-header h1 {
@@ -111,29 +126,79 @@ body {
     text-overflow: ellipsis;
 }
 
-.theme-toggle {
-    flex: 0 0 auto;
+.list-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    width: 100%;
+}
+
+.checklist-select {
+    flex: 1;
+    min-width: 0;
+
+    height: 28px;
 
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: 7px;
 
-    padding: 5px 8px;
+    padding: 0 7px;
 
     background: var(--button-bg);
     color: var(--text-main);
 
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
 
+    outline: none;
     cursor: pointer;
-    transition:
-        background 0.15s ease,
-        border-color 0.15s ease,
-        color 0.15s ease;
 }
 
-.theme-toggle:hover {
+.checklist-select:focus {
+    border-color: var(--accent);
+}
+
+.header-icon-button {
+    flex: 0 0 auto;
+
+    width: 28px;
+    height: 28px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 1px solid var(--border);
+    border-radius: 7px;
+
+    background: var(--button-bg);
+    color: var(--text-main);
+
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1;
+
+    cursor: pointer;
+
+    transition:
+        background 0.15s ease,
+        color 0.15s ease,
+        border-color 0.15s ease;
+}
+
+.header-icon-button:hover {
     background: var(--button-hover);
+}
+
+.header-icon-button.danger {
+    color: var(--danger);
+}
+
+.header-icon-button.danger:hover {
+    background: var(--danger);
+    border-color: var(--danger-hover);
+    color: #ffffff;
 }
 
 .list-wrapper {
@@ -419,9 +484,15 @@ body {
         font-size: 13px;
     }
 
-    .theme-toggle {
-        padding: 4px 6px;
-        font-size: 10px;
+    .checklist-select {
+        height: 26px;
+        font-size: 11px;
+    }
+
+    .header-icon-button {
+        width: 26px;
+        height: 26px;
+        font-size: 14px;
     }
 
     .item-label {

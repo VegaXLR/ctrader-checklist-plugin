@@ -14,11 +14,23 @@
     <main class="plugin-shell">
         <section class="checklist-card">
             <header class="plugin-header">
-                <h1>cTrader Checklist</h1>
+                <div class="title-row">
+                    <h1>cTrader Checklist</h1>
+                </div>
 
-                <button id="themeToggle" class="theme-toggle" type="button">
-                    Dark Mode
-                </button>
+                <div class="list-controls">
+                    <select id="checklistSelect" class="checklist-select" title="Select checklist"></select>
+
+                    <button id="newChecklistButton" class="header-icon-button" type="button"
+                        title="Create new checklist">
+                        +
+                    </button>
+
+                    <button id="deleteChecklistButton" class="header-icon-button danger" type="button"
+                        title="Delete selected checklist">
+                        ×
+                    </button>
+                </div>
             </header>
 
             <section class="list-wrapper">
@@ -46,12 +58,30 @@
             <input id="itemInput" type="text" maxlength="160" placeholder="Type your checklist item..." />
 
             <div class="modal-actions">
-                <button id="cancelModalButton" class="modal-button secondary" type="button">
+                <button id="cancelItemModalButton" class="modal-button secondary" type="button">
                     Cancel
                 </button>
 
                 <button id="saveItemButton" class="modal-button primary" type="button">
                     Save
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <section id="checklistModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal">
+            <h2>Create new checklist</h2>
+
+            <input id="checklistNameInput" type="text" maxlength="60" placeholder="Checklist name..." />
+
+            <div class="modal-actions">
+                <button id="cancelChecklistModalButton" class="modal-button secondary" type="button">
+                    Cancel
+                </button>
+
+                <button id="saveChecklistButton" class="modal-button primary" type="button">
+                    Create
                 </button>
             </div>
         </div>

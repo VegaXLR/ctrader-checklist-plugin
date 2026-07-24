@@ -1,53 +1,85 @@
-const STORAGE_ITEMS_KEY = "vegaxlr_ctrader_checklist_items";
-const STORAGE_THEME_KEY = "vegaxlr_ctrader_checklist_theme";
+const STORAGE_DATA_KEY = "vegaxlr_ctrader_multi_checklists_data";
+const STORAGE_ACTIVE_LIST_KEY = "vegaxlr_ctrader_active_checklist_id";
+
+const checklistSelect = document.getElementById("checklistSelect");
+const newChecklistButton = document.getElementById("newChecklistButton");
+const deleteChecklistButton = document.getElementById("deleteChecklistButton");
 
 const checklistItemsElement = document.getElementById("checklistItems");
 const addItemButton = document.getElementById("addItemButton");
-const themeToggle = document.getElementById("themeToggle");
 
 const itemModal = document.getElementById("itemModal");
 const modalTitle = document.getElementById("modalTitle");
 const itemInput = document.getElementById("itemInput");
-const cancelModalButton = document.getElementById("cancelModalButton");
+const cancelItemModalButton = document.getElementById("cancelItemModalButton");
 const saveItemButton = document.getElementById("saveItemButton");
 
-let checklistItems = [];
+const checklistModal = document.getElementById("checklistModal");
+const checklistNameInput = document.getElementById("checklistNameInput");
+const cancelChecklistModalButton = document.getElementById("cancelChecklistModalButton");
+const saveChecklistButton = document.getElementById("saveChecklistButton");
+
+let appData = {
+    checklists: []
+};
+
+let activeChecklistId = null;
 let editingItemId = null;
 
 function generateId() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-function loadItems() {
+function createDefaultData() {
+    const defaultChecklistId = generateId();
+
+    return {
+        checklists: [
+            {
+                id: defaultChecklistId,
+                name: "Main Checklist",
+                items: []
+            }
+        ]
+    };
+}
+
+function loadData() {
     try {
-        const storedItems = localStorage.getItem(STORAGE_ITEMS_KEY);
-        checklistItems = storedItems ? JSON.parse(storedItems) : [];
+        const storedData = localStorage.getItem(STORAGE_DATA_KEY);
+
+        if (storedData) {
+            appData = JSON.parse(storedData);
+        } else {
+            appData = createDefaultData();
+        }
+
+        if (!appData.checklists || appData.checklists.length === 0) {
+            appData = createDefaultData();
+        }
     } catch {
-        checklistItems = [];
+        appData = createDefaultData();
     }
+
+    const storedActiveId = localStorage.getItem(STORAGE_ACTIVE_LIST_KEY);
+    const activeExists = appData.checklists.some((list) => list.id === storedActiveId);
+
+    activeChecklistId = activeExists ? storedActiveId : appData.checklists[0].id;
+
+    saveData();
+    saveActiveChecklist();
 }
 
-function saveItems() {
-    localStorage.setItem(STORAGE_ITEMS_KEY, JSON.stringify(checklistItems));
+function saveData() {
+    localStorage.setItem(STORAGE_DATA_KEY, JSON.stringify(appData));
 }
 
-function loadTheme() {
-    const savedTheme = localStorage.getItem(STORAGE_THEME_KEY) || "dark";
-
-    if (savedTheme === "dark") {
-        document.body.classList.add("dark");
-        themeToggle.textContent = "Light Mode";
-    } else {
-        document.body.classList.remove("dark");
-        themeToggle.textContent = "Dark Mode";
-    }
+function saveActiveChecklist() {
+    localStorage.setItem(STORAGE_ACTIVE_LIST_KEY, activeChecklistId);
 }
 
-function toggleTheme() {
-    const isDarkMode = document.body.classList.toggle("dark");
-
-    localStorage.setItem(STORAGE_THEME_KEY, isDarkMode ? "dark" : "light");
-    themeToggle.textContent = isDarkMode ? "Light Mode" : "Dark Mode";
+function getActiveChecklist() {
+    return appData.checklists.find((list) => list.id === activeChecklistId) || appData.checklists[0];
 }
 
 function escapeHtml(value) {
@@ -59,20 +91,44 @@ function escapeHtml(value) {
         .replaceAll("'", "&#039;");
 }
 
+function renderChecklistSelect() {
+    checklistSelect.innerHTML = "";
+
+    appData.checklists.forEach((list) => {
+        const option = document.createElement("option");
+        option.value = list.id;
+        option.textContent = list.name;
+
+        if (list.id === activeChecklistId) {
+            option.selected = true;
+        }
+
+        checklistSelect.appendChild(option);
+    });
+
+    deleteChecklistButton.disabled = appData.checklists.length <= 1;
+    deleteChecklistButton.title =
+        appData.checklists.length <= 1
+            ? "You must keep at least one checklist"
+            : "Delete selected checklist";
+}
+
 function renderItems() {
     checklistItemsElement.innerHTML = "";
 
-    if (checklistItems.length === 0) {
+    const activeChecklist = getActiveChecklist();
+
+    if (!activeChecklist || activeChecklist.items.length === 0) {
         const emptyState = document.createElement("div");
         emptyState.className = "empty-state";
         emptyState.textContent =
-            "Your checklist is empty. Click + Add new item to create your first trading reminder.";
+            "This checklist is empty. Click + Add new item to create your first trading reminder.";
 
         checklistItemsElement.appendChild(emptyState);
         return;
     }
 
-    checklistItems.forEach((item) => {
+    activeChecklist.items.forEach((item) => {
         const row = document.createElement("div");
         row.className = item.completed ? "checklist-row done" : "checklist-row";
 
@@ -82,7 +138,7 @@ function renderItems() {
 
         checkbox.addEventListener("change", () => {
             item.completed = checkbox.checked;
-            saveItems();
+            saveData();
             renderItems();
         });
 
@@ -97,7 +153,7 @@ function renderItems() {
         editButton.textContent = "✎";
 
         editButton.addEventListener("click", () => {
-            openModal(item.id);
+            openItemModal(item.id);
         });
 
         const deleteButton = document.createElement("button");
@@ -119,11 +175,18 @@ function renderItems() {
     });
 }
 
-function openModal(itemId = null) {
+function renderAll() {
+    renderChecklistSelect();
+    renderItems();
+}
+
+function openItemModal(itemId = null) {
     editingItemId = itemId;
 
+    const activeChecklist = getActiveChecklist();
+
     if (editingItemId) {
-        const item = checklistItems.find((entry) => entry.id === editingItemId);
+        const item = activeChecklist.items.find((entry) => entry.id === editingItemId);
 
         modalTitle.textContent = "Edit checklist item";
         itemInput.value = item ? item.text : "";
@@ -141,7 +204,7 @@ function openModal(itemId = null) {
     }, 50);
 }
 
-function closeModal() {
+function closeItemModal() {
     editingItemId = null;
     itemInput.value = "";
 
@@ -149,7 +212,7 @@ function closeModal() {
     itemModal.setAttribute("aria-hidden", "true");
 }
 
-function saveModalItem() {
+function saveItemFromModal() {
     const value = itemInput.value.trim();
 
     if (!value) {
@@ -157,58 +220,156 @@ function saveModalItem() {
         return;
     }
 
+    const activeChecklist = getActiveChecklist();
+
     if (editingItemId) {
-        const item = checklistItems.find((entry) => entry.id === editingItemId);
+        const item = activeChecklist.items.find((entry) => entry.id === editingItemId);
 
         if (item) {
             item.text = value;
         }
     } else {
-        checklistItems.push({
+        activeChecklist.items.push({
             id: generateId(),
             text: value,
             completed: false
         });
     }
 
-    saveItems();
+    saveData();
     renderItems();
-    closeModal();
+    closeItemModal();
 }
 
 function deleteItem(itemId) {
-    checklistItems = checklistItems.filter((item) => item.id !== itemId);
+    const activeChecklist = getActiveChecklist();
 
-    saveItems();
+    activeChecklist.items = activeChecklist.items.filter((item) => item.id !== itemId);
+
+    saveData();
     renderItems();
 }
 
-addItemButton.addEventListener("click", () => {
-    openModal();
+function openChecklistModal() {
+    checklistNameInput.value = "";
+
+    checklistModal.classList.add("visible");
+    checklistModal.setAttribute("aria-hidden", "false");
+
+    setTimeout(() => {
+        checklistNameInput.focus();
+        checklistNameInput.select();
+    }, 50);
+}
+
+function closeChecklistModal() {
+    checklistNameInput.value = "";
+
+    checklistModal.classList.remove("visible");
+    checklistModal.setAttribute("aria-hidden", "true");
+}
+
+function createChecklistFromModal() {
+    const name = checklistNameInput.value.trim();
+
+    if (!name) {
+        checklistNameInput.focus();
+        return;
+    }
+
+    const newChecklist = {
+        id: generateId(),
+        name,
+        items: []
+    };
+
+    appData.checklists.push(newChecklist);
+    activeChecklistId = newChecklist.id;
+
+    saveData();
+    saveActiveChecklist();
+    renderAll();
+    closeChecklistModal();
+}
+
+function deleteActiveChecklist() {
+    if (appData.checklists.length <= 1) {
+        return;
+    }
+
+    const activeChecklist = getActiveChecklist();
+
+    const confirmed = window.confirm(
+        `Delete checklist "${activeChecklist.name}"? This cannot be undone.`
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    appData.checklists = appData.checklists.filter((list) => list.id !== activeChecklistId);
+
+    activeChecklistId = appData.checklists[0].id;
+
+    saveData();
+    saveActiveChecklist();
+    renderAll();
+}
+
+checklistSelect.addEventListener("change", () => {
+    activeChecklistId = checklistSelect.value;
+
+    saveActiveChecklist();
+    renderItems();
 });
 
-themeToggle.addEventListener("click", toggleTheme);
+newChecklistButton.addEventListener("click", openChecklistModal);
 
-cancelModalButton.addEventListener("click", closeModal);
+deleteChecklistButton.addEventListener("click", deleteActiveChecklist);
 
-saveItemButton.addEventListener("click", saveModalItem);
+addItemButton.addEventListener("click", () => {
+    openItemModal();
+});
+
+cancelItemModalButton.addEventListener("click", closeItemModal);
+
+saveItemButton.addEventListener("click", saveItemFromModal);
 
 itemInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
-        saveModalItem();
+        saveItemFromModal();
     }
 
     if (event.key === "Escape") {
-        closeModal();
+        closeItemModal();
     }
 });
 
 itemModal.addEventListener("click", (event) => {
     if (event.target === itemModal) {
-        closeModal();
+        closeItemModal();
     }
 });
 
-loadTheme();
-loadItems();
-renderItems();
+cancelChecklistModalButton.addEventListener("click", closeChecklistModal);
+
+saveChecklistButton.addEventListener("click", createChecklistFromModal);
+
+checklistNameInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        createChecklistFromModal();
+    }
+
+    if (event.key === "Escape") {
+        closeChecklistModal();
+    }
+});
+
+checklistModal.addEventListener("click", (event) => {
+    if (event.target === checklistModal) {
+        closeChecklistModal();
+    }
+});
+
+loadData();
+renderAll();
