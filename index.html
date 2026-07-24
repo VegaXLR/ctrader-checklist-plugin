@@ -23,14 +23,14 @@
                 </div>
 
                 <div id="readyStatus" class="ready-status">
-                    ✓ Setup ready
+                    ✓ Checklist complete
                 </div>
 
                 <div class="list-controls">
                     <select id="checklistSelect" class="checklist-select" title="Select checklist"></select>
 
                     <button id="newChecklistButton" class="header-icon-button" type="button"
-                        title="Create new checklist">
+                        title="Create checklist from template">
                         +
                     </button>
 
@@ -44,10 +44,20 @@
                         ⧉
                     </button>
 
+                    <button id="exportButton" class="header-icon-button" type="button" title="Export all checklists">
+                        ⇩
+                    </button>
+
+                    <button id="importButton" class="header-icon-button" type="button" title="Import checklists">
+                        ⇧
+                    </button>
+
                     <button id="deleteChecklistButton" class="header-icon-button danger" type="button"
                         title="Delete selected checklist">
                         ×
                     </button>
+
+                    <input id="importFileInput" type="file" accept="application/json,.json" hidden />
                 </div>
 
                 <div class="bulk-actions">
@@ -61,33 +71,10 @@
                         □ Untick all
                     </button>
                 </div>
-
-                <div class="utility-actions">
-                    <button id="templateButton" class="utility-button" type="button"
-                        title="Create checklist from template">
-                        Templates
-                    </button>
-
-                    <button id="exportButton" class="utility-button" type="button" title="Export all checklists">
-                        Export
-                    </button>
-
-                    <button id="importButton" class="utility-button" type="button" title="Import checklists">
-                        Import
-                    </button>
-
-                    <input id="importFileInput" type="file" accept="application/json,.json" hidden />
-                </div>
             </header>
 
             <section class="list-wrapper">
                 <div id="checklistItems" class="checklist-items"></div>
-            </section>
-
-            <section class="add-section">
-                <button id="addItemButton" class="add-button" type="button">
-                    + Add new item
-                </button>
             </section>
 
             <footer class="plugin-footer">
@@ -104,6 +91,11 @@
 
             <input id="itemInput" type="text" maxlength="160" placeholder="Type your checklist item..." />
 
+            <label class="optional-toggle">
+                <input id="optionalItemInput" type="checkbox" />
+                <span>Optional item</span>
+            </label>
+
             <div class="modal-actions">
                 <button id="cancelItemModalButton" class="modal-button secondary" type="button">
                     Cancel
@@ -118,7 +110,7 @@
 
     <section id="checklistModal" class="modal-backdrop" aria-hidden="true">
         <div class="modal">
-            <h2 id="checklistModalTitle">Create new checklist</h2>
+            <h2 id="checklistModalTitle">Rename checklist</h2>
 
             <input id="checklistNameInput" type="text" maxlength="60" placeholder="Checklist name..." />
 
@@ -136,9 +128,12 @@
 
     <section id="templateModal" class="modal-backdrop" aria-hidden="true">
         <div class="modal">
-            <h2>Create from template</h2>
+            <h2>Create checklist</h2>
 
             <select id="templateSelect" class="modal-select"></select>
+
+            <input id="templateNameInput" type="text" maxlength="60" placeholder="Checklist name..."
+                class="template-name-input" />
 
             <div class="template-preview" id="templatePreview"></div>
 

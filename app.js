@@ -12,12 +12,10 @@ const duplicateChecklistButton = document.getElementById("duplicateChecklistButt
 const deleteChecklistButton = document.getElementById("deleteChecklistButton");
 
 const checklistItemsElement = document.getElementById("checklistItems");
-const addItemButton = document.getElementById("addItemButton");
 
 const tickAllButton = document.getElementById("tickAllButton");
 const untickAllButton = document.getElementById("untickAllButton");
 
-const templateButton = document.getElementById("templateButton");
 const exportButton = document.getElementById("exportButton");
 const importButton = document.getElementById("importButton");
 const importFileInput = document.getElementById("importFileInput");
@@ -25,22 +23,27 @@ const importFileInput = document.getElementById("importFileInput");
 const itemModal = document.getElementById("itemModal");
 const modalTitle = document.getElementById("modalTitle");
 const itemInput = document.getElementById("itemInput");
+const optionalItemInput = document.getElementById("optionalItemInput");
 const cancelItemModalButton = document.getElementById("cancelItemModalButton");
 const saveItemButton = document.getElementById("saveItemButton");
 
 const checklistModal = document.getElementById("checklistModal");
-const checklistModalTitle = document.getElementById("checklistModalTitle");
 const checklistNameInput = document.getElementById("checklistNameInput");
 const cancelChecklistModalButton = document.getElementById("cancelChecklistModalButton");
 const saveChecklistButton = document.getElementById("saveChecklistButton");
 
 const templateModal = document.getElementById("templateModal");
 const templateSelect = document.getElementById("templateSelect");
+const templateNameInput = document.getElementById("templateNameInput");
 const templatePreview = document.getElementById("templatePreview");
 const cancelTemplateModalButton = document.getElementById("cancelTemplateModalButton");
 const createFromTemplateButton = document.getElementById("createFromTemplateButton");
 
 const TEMPLATES = [
+    {
+        name: "Blank Checklist",
+        items: []
+    },
     {
         name: "Scalping Setup",
         items: [
@@ -59,7 +62,7 @@ const TEMPLATES = [
             "Key level is clearly marked",
             "Price is consolidating near the level",
             "Breakout candle closes beyond the level",
-            "Volume or momentum confirms the move",
+            "Momentum confirms the move",
             "Retest plan is defined",
             "Stop loss is defined",
             "Reward-to-risk is acceptable"
@@ -90,20 +93,15 @@ const TEMPLATES = [
         ]
     },
     {
-        name: "News Trading Checklist",
+        name: "Post-Trade Review",
         items: [
-            "News event time is confirmed",
-            "Expected impact is understood",
-            "Spread conditions are acceptable",
-            "Volatility risk is acceptable",
-            "Entry plan is defined",
-            "Exit plan is defined",
-            "Position size is reduced if needed"
+            "Screenshot saved",
+            "Entry reason documented",
+            "Exit reason documented",
+            "Mistakes noted",
+            "Emotional state reviewed",
+            "Journal updated"
         ]
-    },
-    {
-        name: "Blank Checklist",
-        items: []
     }
 ];
 
@@ -113,7 +111,7 @@ let appData = {
 
 let activeChecklistId = null;
 let editingItemId = null;
-let checklistModalMode = "create";
+let draggedItemId = null;
 
 function generateId() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -123,7 +121,7 @@ function createDefaultData() {
     const defaultChecklistId = generateId();
 
     return {
-        version: 2,
+        version: 3,
         checklists: [
             {
                 id: defaultChecklistId,
@@ -150,7 +148,8 @@ function normalizeImportedData(data) {
                     .map((item) => ({
                         id: item.id || generateId(),
                         text: item.text.trim(),
-                        completed: Boolean(item.completed)
+                        completed: Boolean(item.completed),
+                        optional: Boolean(item.optional)
                     }))
                     .filter((item) => item.text.length > 0)
                 : []
@@ -161,7 +160,7 @@ function normalizeImportedData(data) {
     }
 
     return {
-        version: 2,
+        version: 3,
         checklists: cleanChecklists
     };
 }
@@ -215,17 +214,27 @@ function getChecklistProgress(checklist) {
         return {
             total: 0,
             completed: 0,
-            isReady: false
+            requiredTotal: 0,
+            requiredCompleted: 0,
+            isFullyComplete: false,
+            isRequiredComplete: false
         };
     }
 
     const total = checklist.items.length;
     const completed = checklist.items.filter((item) => item.completed).length;
 
+    const requiredItems = checklist.items.filter((item) => !item.optional);
+    const requiredTotal = requiredItems.length;
+    const requiredCompleted = requiredItems.filter((item) => item.completed).length;
+
     return {
         total,
         completed,
-        isReady: total > 0 && completed === total
+        requiredTotal,
+        requiredCompleted,
+        isFullyComplete: total > 0 && completed === total,
+        isRequiredComplete: total > 0 && requiredTotal > 0 && requiredCompleted === requiredTotal
     };
 }
 
@@ -235,12 +244,20 @@ function updateProgressState() {
 
     progressCounter.textContent = `${progress.completed}/${progress.total}`;
 
-    if (progress.isReady) {
+    checklistCard.classList.remove("ready", "required-ready");
+    readyStatus.classList.remove("visible", "complete", "required");
+
+    if (progress.isFullyComplete) {
         checklistCard.classList.add("ready");
-        readyStatus.classList.add("visible");
-    } else {
-        checklistCard.classList.remove("ready");
-        readyStatus.classList.remove("visible");
+        readyStatus.classList.add("visible", "complete");
+        readyStatus.textContent = "✓ Checklist complete";
+        return;
+    }
+
+    if (progress.isRequiredComplete) {
+        checklistCard.classList.add("required-ready");
+        readyStatus.classList.add("visible", "required");
+        readyStatus.textContent = "✓ Required items complete";
     }
 }
 
@@ -260,10 +277,21 @@ function renderChecklistSelect() {
     });
 
     deleteChecklistButton.disabled = appData.checklists.length <= 1;
-    deleteChecklistButton.title =
-        appData.checklists.length <= 1
-            ? "You must keep at least one checklist"
-            : "Delete selected checklist";
+}
+
+function createAddButtonRow() {
+    const addRow = document.createElement("div");
+    addRow.className = "inline-add-row";
+
+    const addButton = document.createElement("button");
+    addButton.className = "add-button";
+    addButton.type = "button";
+    addButton.textContent = "+ Add new item";
+    addButton.addEventListener("click", () => openItemModal());
+
+    addRow.appendChild(addButton);
+
+    return addRow;
 }
 
 function renderItems() {
@@ -280,9 +308,10 @@ function renderItems() {
         const emptyState = document.createElement("div");
         emptyState.className = "empty-state";
         emptyState.textContent =
-            "This checklist is empty. Click + Add new item, import a backup, or create a checklist from a template.";
+            "This checklist is empty. Click + Add new item below, or use + in the header to create from a template.";
 
         checklistItemsElement.appendChild(emptyState);
+        checklistItemsElement.appendChild(createAddButtonRow());
         return;
     }
 
@@ -291,7 +320,39 @@ function renderItems() {
 
     activeChecklist.items.forEach((item) => {
         const row = document.createElement("div");
-        row.className = item.completed ? "checklist-row done" : "checklist-row";
+        row.className = [
+            "checklist-row",
+            item.completed ? "done" : "",
+            item.optional ? "optional" : ""
+        ].join(" ").trim();
+
+        row.draggable = true;
+        row.dataset.itemId = item.id;
+
+        row.addEventListener("dragstart", (event) => {
+            draggedItemId = item.id;
+            row.classList.add("dragging");
+            event.dataTransfer.effectAllowed = "move";
+        });
+
+        row.addEventListener("dragend", () => {
+            draggedItemId = null;
+            row.classList.remove("dragging");
+        });
+
+        row.addEventListener("dragover", (event) => {
+            event.preventDefault();
+        });
+
+        row.addEventListener("drop", (event) => {
+            event.preventDefault();
+            reorderItems(draggedItemId, item.id);
+        });
+
+        const dragHandle = document.createElement("div");
+        dragHandle.className = "drag-handle";
+        dragHandle.title = "Drag to reorder";
+        dragHandle.textContent = "⋮⋮";
 
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
@@ -303,9 +364,21 @@ function renderItems() {
             renderItems();
         });
 
+        const itemContent = document.createElement("div");
+        itemContent.className = "item-content";
+
         const label = document.createElement("div");
         label.className = "item-label";
         label.innerHTML = escapeHtml(item.text);
+
+        itemContent.appendChild(label);
+
+        if (item.optional) {
+            const optionalBadge = document.createElement("div");
+            optionalBadge.className = "optional-badge";
+            optionalBadge.textContent = "Optional";
+            itemContent.appendChild(optionalBadge);
+        }
 
         const editButton = document.createElement("button");
         editButton.className = "symbol-button edit-button";
@@ -327,13 +400,36 @@ function renderItems() {
             deleteItem(item.id);
         });
 
+        row.appendChild(dragHandle);
         row.appendChild(checkbox);
-        row.appendChild(label);
+        row.appendChild(itemContent);
         row.appendChild(editButton);
         row.appendChild(deleteButton);
 
         checklistItemsElement.appendChild(row);
     });
+
+    checklistItemsElement.appendChild(createAddButtonRow());
+}
+
+function reorderItems(sourceItemId, targetItemId) {
+    if (!sourceItemId || !targetItemId || sourceItemId === targetItemId) {
+        return;
+    }
+
+    const activeChecklist = getActiveChecklist();
+    const sourceIndex = activeChecklist.items.findIndex((item) => item.id === sourceItemId);
+    const targetIndex = activeChecklist.items.findIndex((item) => item.id === targetItemId);
+
+    if (sourceIndex === -1 || targetIndex === -1) {
+        return;
+    }
+
+    const [movedItem] = activeChecklist.items.splice(sourceIndex, 1);
+    activeChecklist.items.splice(targetIndex, 0, movedItem);
+
+    saveData();
+    renderItems();
 }
 
 function renderAll() {
@@ -351,9 +447,11 @@ function openItemModal(itemId = null) {
 
         modalTitle.textContent = "Edit checklist item";
         itemInput.value = item ? item.text : "";
+        optionalItemInput.checked = item ? Boolean(item.optional) : false;
     } else {
         modalTitle.textContent = "Add checklist item";
         itemInput.value = "";
+        optionalItemInput.checked = false;
     }
 
     itemModal.classList.add("visible");
@@ -368,6 +466,7 @@ function openItemModal(itemId = null) {
 function closeItemModal() {
     editingItemId = null;
     itemInput.value = "";
+    optionalItemInput.checked = false;
 
     itemModal.classList.remove("visible");
     itemModal.setAttribute("aria-hidden", "true");
@@ -388,12 +487,14 @@ function saveItemFromModal() {
 
         if (item) {
             item.text = value;
+            item.optional = optionalItemInput.checked;
         }
     } else {
         activeChecklist.items.push({
             id: generateId(),
             text: value,
-            completed: false
+            completed: false,
+            optional: optionalItemInput.checked
         });
     }
 
@@ -441,27 +542,11 @@ function untickAllItemsInActiveChecklist() {
     renderItems();
 }
 
-function openCreateChecklistModal() {
-    checklistModalMode = "create";
-    checklistModalTitle.textContent = "Create new checklist";
-    saveChecklistButton.textContent = "Create";
-    checklistNameInput.value = "";
-
-    openChecklistModalBase();
-}
-
 function openRenameChecklistModal() {
     const activeChecklist = getActiveChecklist();
 
-    checklistModalMode = "rename";
-    checklistModalTitle.textContent = "Rename checklist";
-    saveChecklistButton.textContent = "Rename";
     checklistNameInput.value = activeChecklist ? activeChecklist.name : "";
 
-    openChecklistModalBase();
-}
-
-function openChecklistModalBase() {
     checklistModal.classList.add("visible");
     checklistModal.setAttribute("aria-hidden", "false");
 
@@ -486,25 +571,13 @@ function saveChecklistModal() {
         return;
     }
 
-    if (checklistModalMode === "rename") {
-        const activeChecklist = getActiveChecklist();
+    const activeChecklist = getActiveChecklist();
 
-        if (activeChecklist) {
-            activeChecklist.name = name;
-        }
-    } else {
-        const newChecklist = {
-            id: generateId(),
-            name,
-            items: []
-        };
-
-        appData.checklists.push(newChecklist);
-        activeChecklistId = newChecklist.id;
+    if (activeChecklist) {
+        activeChecklist.name = name;
     }
 
     saveData();
-    saveActiveChecklist();
     renderAll();
     closeChecklistModal();
 }
@@ -522,7 +595,8 @@ function duplicateActiveChecklist() {
         items: activeChecklist.items.map((item) => ({
             id: generateId(),
             text: item.text,
-            completed: item.completed
+            completed: item.completed,
+            optional: Boolean(item.optional)
         }))
     };
 
@@ -569,11 +643,14 @@ function renderTemplateOptions() {
         templateSelect.appendChild(option);
     });
 
+    templateSelect.value = "0";
     renderTemplatePreview();
 }
 
 function renderTemplatePreview() {
     const template = TEMPLATES[Number(templateSelect.value)] || TEMPLATES[0];
+
+    templateNameInput.value = template.name;
 
     if (!template.items.length) {
         templatePreview.innerHTML = "Creates an empty checklist.";
@@ -592,6 +669,11 @@ function openTemplateModal() {
 
     templateModal.classList.add("visible");
     templateModal.setAttribute("aria-hidden", "false");
+
+    setTimeout(() => {
+        templateNameInput.focus();
+        templateNameInput.select();
+    }, 50);
 }
 
 function closeTemplateModal() {
@@ -601,14 +683,16 @@ function closeTemplateModal() {
 
 function createChecklistFromTemplate() {
     const template = TEMPLATES[Number(templateSelect.value)] || TEMPLATES[0];
+    const checklistName = templateNameInput.value.trim() || template.name;
 
     const newChecklist = {
         id: generateId(),
-        name: template.name,
+        name: checklistName,
         items: template.items.map((itemText) => ({
             id: generateId(),
             text: itemText,
-            completed: false
+            completed: false,
+            optional: false
         }))
     };
 
@@ -623,7 +707,7 @@ function createChecklistFromTemplate() {
 
 function exportChecklists() {
     const exportData = {
-        version: 2,
+        version: 3,
         exportedAt: new Date().toISOString(),
         source: "VegaXLR cTrader Checklist",
         checklists: appData.checklists
@@ -692,19 +776,11 @@ checklistSelect.addEventListener("change", () => {
     renderItems();
 });
 
-newChecklistButton.addEventListener("click", openCreateChecklistModal);
+newChecklistButton.addEventListener("click", openTemplateModal);
 
 renameChecklistButton.addEventListener("click", openRenameChecklistModal);
 
 duplicateChecklistButton.addEventListener("click", duplicateActiveChecklist);
-
-deleteChecklistButton.addEventListener("click", deleteActiveChecklist);
-
-tickAllButton.addEventListener("click", tickAllItemsInActiveChecklist);
-
-untickAllButton.addEventListener("click", untickAllItemsInActiveChecklist);
-
-templateButton.addEventListener("click", openTemplateModal);
 
 exportButton.addEventListener("click", exportChecklists);
 
@@ -720,9 +796,11 @@ importFileInput.addEventListener("change", () => {
     }
 });
 
-addItemButton.addEventListener("click", () => {
-    openItemModal();
-});
+deleteChecklistButton.addEventListener("click", deleteActiveChecklist);
+
+tickAllButton.addEventListener("click", tickAllItemsInActiveChecklist);
+
+untickAllButton.addEventListener("click", untickAllItemsInActiveChecklist);
 
 cancelItemModalButton.addEventListener("click", closeItemModal);
 
@@ -769,6 +847,16 @@ templateSelect.addEventListener("change", renderTemplatePreview);
 cancelTemplateModalButton.addEventListener("click", closeTemplateModal);
 
 createFromTemplateButton.addEventListener("click", createChecklistFromTemplate);
+
+templateNameInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        createChecklistFromTemplate();
+    }
+
+    if (event.key === "Escape") {
+        closeTemplateModal();
+    }
+});
 
 templateModal.addEventListener("click", (event) => {
     if (event.target === templateModal) {

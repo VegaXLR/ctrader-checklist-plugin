@@ -11,6 +11,9 @@
     --accent-hover: #00924e;
     --accent-soft: rgba(0, 168, 90, 0.12);
 
+    --warning: #d49300;
+    --warning-soft: rgba(212, 147, 0, 0.12);
+
     --button-bg: #eef2f6;
     --button-hover: #e0e6ee;
 
@@ -34,6 +37,9 @@
         --accent: #00c46a;
         --accent-hover: #00ad5e;
         --accent-soft: rgba(0, 196, 106, 0.14);
+
+        --warning: #f0b429;
+        --warning-soft: rgba(240, 180, 41, 0.14);
 
         --button-bg: #383838;
         --button-hover: #464646;
@@ -64,12 +70,6 @@ body {
     color: var(--text-main);
 
     overflow: hidden;
-}
-
-body {
-    transition:
-        background 0.2s ease,
-        color 0.2s ease;
 }
 
 button,
@@ -109,6 +109,11 @@ input {
 .checklist-card.ready {
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent-soft), 0 4px 16px var(--shadow);
+}
+
+.checklist-card.required-ready {
+    border-color: var(--warning);
+    box-shadow: 0 0 0 1px var(--warning-soft), 0 4px 16px var(--shadow);
 }
 
 .plugin-header {
@@ -156,11 +161,7 @@ input {
     display: none;
 
     padding: 5px 7px;
-    border: 1px solid var(--accent);
     border-radius: 7px;
-
-    background: var(--accent-soft);
-    color: var(--accent);
 
     font-size: 12px;
     font-weight: 800;
@@ -169,6 +170,18 @@ input {
 
 .ready-status.visible {
     display: block;
+}
+
+.ready-status.complete {
+    border: 1px solid var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.ready-status.required {
+    border: 1px solid var(--warning);
+    background: var(--warning-soft);
+    color: var(--warning);
 }
 
 .list-controls {
@@ -207,7 +220,7 @@ input {
 .header-icon-button {
     flex: 0 0 auto;
 
-    width: 27px;
+    width: 25px;
     height: 28px;
 
     display: inline-flex;
@@ -220,7 +233,7 @@ input {
     background: var(--button-bg);
     color: var(--text-main);
 
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 800;
     line-height: 1;
 
@@ -260,8 +273,7 @@ input {
     width: 100%;
 }
 
-.bulk-button,
-.utility-button {
+.bulk-button {
     height: 27px;
 
     border: 1px solid var(--border);
@@ -283,30 +295,19 @@ input {
         opacity 0.15s ease;
 }
 
-.bulk-button:hover,
-.utility-button:hover {
+.bulk-button:hover {
     background: var(--button-hover);
     border-color: var(--accent);
 }
 
-.bulk-button:disabled,
-.utility-button:disabled {
+.bulk-button:disabled {
     opacity: 0.45;
     cursor: not-allowed;
 }
 
-.bulk-button:disabled:hover,
-.utility-button:disabled:hover {
+.bulk-button:disabled:hover {
     background: var(--button-bg);
     border-color: var(--border);
-}
-
-.utility-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 6px;
-
-    width: 100%;
 }
 
 .list-wrapper {
@@ -357,8 +358,21 @@ input {
     border-bottom: 1px solid var(--border);
 }
 
-.checklist-row:last-child {
-    border-bottom: none;
+.checklist-row.dragging {
+    opacity: 0.45;
+}
+
+.drag-handle {
+    flex: 0 0 auto;
+
+    width: 14px;
+
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1;
+
+    cursor: grab;
+    user-select: none;
 }
 
 .checklist-row input[type="checkbox"] {
@@ -372,14 +386,40 @@ input {
     cursor: pointer;
 }
 
-.item-label {
+.item-content {
     flex: 1;
     min-width: 0;
 
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.item-label {
     font-size: 13px;
     line-height: 1.35;
 
     word-break: break-word;
+}
+
+.optional-badge {
+    align-self: flex-start;
+
+    padding: 1px 5px;
+    border: 1px solid var(--warning);
+    border-radius: 999px;
+
+    color: var(--warning);
+    background: var(--warning-soft);
+
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.checklist-row.optional {
+    background: linear-gradient(90deg, var(--warning-soft), transparent 55%);
 }
 
 .checklist-row.done .item-label {
@@ -429,8 +469,8 @@ input {
     color: #ffffff;
 }
 
-.add-section {
-    padding: 8px 8px 10px;
+.inline-add-row {
+    padding: 8px 0 10px;
 }
 
 .add-button {
@@ -546,6 +586,30 @@ input {
     border-color: var(--accent);
 }
 
+.optional-toggle {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    margin-top: 9px;
+
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 700;
+
+    cursor: pointer;
+}
+
+.optional-toggle input {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--warning);
+}
+
+.template-name-input {
+    margin-top: 8px;
+}
+
 .template-preview {
     max-height: 130px;
     overflow-y: auto;
@@ -633,13 +697,12 @@ input {
     }
 
     .header-icon-button {
-        width: 24px;
+        width: 22px;
         height: 26px;
         font-size: 12px;
     }
 
-    .bulk-button,
-    .utility-button {
+    .bulk-button {
         height: 25px;
         font-size: 10px;
     }
