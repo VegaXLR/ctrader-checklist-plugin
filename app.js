@@ -76,7 +76,6 @@ const untickAllButton = document.getElementById("untickAllButton");
 const notesSection = document.getElementById("notesSection");
 const notesToggleButton = document.getElementById("notesToggleButton");
 const notesTextarea = document.getElementById("notesTextarea");
-const platformThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
 const itemModal = document.getElementById("itemModal");
 const modalTitle = document.getElementById("modalTitle");
@@ -179,17 +178,6 @@ let noticeTimeoutId = null;
 
 function generateId() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
-/**
- * Applies the current platform color scheme without touching checklist storage.
- */
-function applyPlatformTheme() {
-    const root = document.documentElement;
-    const isDarkMode = platformThemeQuery.matches;
-
-    root.classList.toggle("theme-dark", isDarkMode);
-    root.classList.toggle("theme-light", !isDarkMode);
 }
 
 function createDefaultData() {
@@ -986,8 +974,6 @@ notesToggleButton.addEventListener("click", toggleNotesSection);
 
 notesTextarea.addEventListener("input", saveActiveChecklistNotes);
 
-applyPlatformTheme();
 loadData();
 renderAll();
 
-platformThemeQuery.addEventListener("change", applyPlatformTheme);

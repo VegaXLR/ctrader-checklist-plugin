@@ -1,6 +1,5 @@
-:root,
-:root.theme-light {
-    color-scheme: light;
+:root {
+    color-scheme: light dark;
 
     --page-bg: #f1f3f6;
     --card-bg: #ffffff;
@@ -53,34 +52,6 @@
         --shadow: rgba(0, 0, 0, 0.35);
         --checked-text: #8e8e8e;
     }
-}
-
-:root.theme-dark {
-    color-scheme: dark;
-
-    --page-bg: #202020;
-    --card-bg: #2b2b2b;
-    --text-main: #f0f0f0;
-    --text-muted: #b9b9b9;
-    --border: #444444;
-
-    --accent: #00c46a;
-    --accent-hover: #00ad5e;
-    --accent-soft: rgba(0, 196, 106, 0.14);
-
-    --warning: #f0b429;
-    --warning-soft: rgba(240, 180, 41, 0.14);
-
-    --button-bg: #383838;
-    --button-hover: #464646;
-
-    --danger: #ff6675;
-    --danger-hover: #e14f5d;
-
-    --footer-link: #00c46a;
-
-    --shadow: rgba(0, 0, 0, 0.35);
-    --checked-text: #8e8e8e;
 }
 
 * {
