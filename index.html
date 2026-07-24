@@ -12,10 +12,18 @@
 
 <body>
     <main class="plugin-shell">
-        <section class="checklist-card">
+        <section id="checklistCard" class="checklist-card">
             <header class="plugin-header">
                 <div class="title-row">
                     <h1>cTrader Checklist</h1>
+
+                    <div id="progressCounter" class="progress-counter">
+                        0/0
+                    </div>
+                </div>
+
+                <div id="readyStatus" class="ready-status">
+                    ✓ Setup ready
                 </div>
 
                 <div class="list-controls">
@@ -24,6 +32,16 @@
                     <button id="newChecklistButton" class="header-icon-button" type="button"
                         title="Create new checklist">
                         +
+                    </button>
+
+                    <button id="renameChecklistButton" class="header-icon-button" type="button"
+                        title="Rename selected checklist">
+                        ✎
+                    </button>
+
+                    <button id="duplicateChecklistButton" class="header-icon-button" type="button"
+                        title="Duplicate selected checklist">
+                        ⧉
                     </button>
 
                     <button id="deleteChecklistButton" class="header-icon-button danger" type="button"
@@ -42,6 +60,23 @@
                         title="Untick all items in this checklist">
                         □ Untick all
                     </button>
+                </div>
+
+                <div class="utility-actions">
+                    <button id="templateButton" class="utility-button" type="button"
+                        title="Create checklist from template">
+                        Templates
+                    </button>
+
+                    <button id="exportButton" class="utility-button" type="button" title="Export all checklists">
+                        Export
+                    </button>
+
+                    <button id="importButton" class="utility-button" type="button" title="Import checklists">
+                        Import
+                    </button>
+
+                    <input id="importFileInput" type="file" accept="application/json,.json" hidden />
                 </div>
             </header>
 
@@ -83,7 +118,7 @@
 
     <section id="checklistModal" class="modal-backdrop" aria-hidden="true">
         <div class="modal">
-            <h2>Create new checklist</h2>
+            <h2 id="checklistModalTitle">Create new checklist</h2>
 
             <input id="checklistNameInput" type="text" maxlength="60" placeholder="Checklist name..." />
 
@@ -93,6 +128,26 @@
                 </button>
 
                 <button id="saveChecklistButton" class="modal-button primary" type="button">
+                    Save
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <section id="templateModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal">
+            <h2>Create from template</h2>
+
+            <select id="templateSelect" class="modal-select"></select>
+
+            <div class="template-preview" id="templatePreview"></div>
+
+            <div class="modal-actions">
+                <button id="cancelTemplateModalButton" class="modal-button secondary" type="button">
+                    Cancel
+                </button>
+
+                <button id="createFromTemplateButton" class="modal-button primary" type="button">
                     Create
                 </button>
             </div>
