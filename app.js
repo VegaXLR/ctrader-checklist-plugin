@@ -8,6 +8,9 @@ const deleteChecklistButton = document.getElementById("deleteChecklistButton");
 const checklistItemsElement = document.getElementById("checklistItems");
 const addItemButton = document.getElementById("addItemButton");
 
+const tickAllButton = document.getElementById("tickAllButton");
+const untickAllButton = document.getElementById("untickAllButton");
+
 const itemModal = document.getElementById("itemModal");
 const modalTitle = document.getElementById("modalTitle");
 const itemInput = document.getElementById("itemInput");
@@ -119,6 +122,9 @@ function renderItems() {
     const activeChecklist = getActiveChecklist();
 
     if (!activeChecklist || activeChecklist.items.length === 0) {
+        tickAllButton.disabled = true;
+        untickAllButton.disabled = true;
+
         const emptyState = document.createElement("div");
         emptyState.className = "empty-state";
         emptyState.textContent =
@@ -127,6 +133,9 @@ function renderItems() {
         checklistItemsElement.appendChild(emptyState);
         return;
     }
+
+    tickAllButton.disabled = activeChecklist.items.every((item) => item.completed);
+    untickAllButton.disabled = activeChecklist.items.every((item) => !item.completed);
 
     activeChecklist.items.forEach((item) => {
         const row = document.createElement("div");
@@ -250,6 +259,36 @@ function deleteItem(itemId) {
     renderItems();
 }
 
+function tickAllItemsInActiveChecklist() {
+    const activeChecklist = getActiveChecklist();
+
+    if (!activeChecklist || activeChecklist.items.length === 0) {
+        return;
+    }
+
+    activeChecklist.items.forEach((item) => {
+        item.completed = true;
+    });
+
+    saveData();
+    renderItems();
+}
+
+function untickAllItemsInActiveChecklist() {
+    const activeChecklist = getActiveChecklist();
+
+    if (!activeChecklist || activeChecklist.items.length === 0) {
+        return;
+    }
+
+    activeChecklist.items.forEach((item) => {
+        item.completed = false;
+    });
+
+    saveData();
+    renderItems();
+}
+
 function openChecklistModal() {
     checklistNameInput.value = "";
 
@@ -326,6 +365,10 @@ checklistSelect.addEventListener("change", () => {
 newChecklistButton.addEventListener("click", openChecklistModal);
 
 deleteChecklistButton.addEventListener("click", deleteActiveChecklist);
+
+tickAllButton.addEventListener("click", tickAllItemsInActiveChecklist);
+
+untickAllButton.addEventListener("click", untickAllItemsInActiveChecklist);
 
 addItemButton.addEventListener("click", () => {
     openItemModal();

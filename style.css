@@ -134,6 +134,52 @@ input {
     width: 100%;
 }
 
+.bulk-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+
+    width: 100%;
+}
+
+.bulk-button {
+    height: 27px;
+
+    border: 1px solid var(--border);
+    border-radius: 7px;
+
+    background: var(--button-bg);
+    color: var(--text-main);
+
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+
+    cursor: pointer;
+
+    transition:
+        background 0.15s ease,
+        color 0.15s ease,
+        border-color 0.15s ease,
+        opacity 0.15s ease;
+}
+
+.bulk-button:hover {
+    background: var(--button-hover);
+    border-color: var(--accent);
+}
+
+.bulk-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.bulk-button:disabled:hover {
+    background: var(--button-bg);
+    border-color: var(--border);
+}
+
+
 .checklist-select {
     flex: 1;
     min-width: 0;
@@ -493,6 +539,11 @@ input {
         width: 26px;
         height: 26px;
         font-size: 14px;
+    }
+
+    .bulk-button {
+        height: 25px;
+        font-size: 10px;
     }
 
     .item-label {
