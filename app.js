@@ -1,5 +1,6 @@
 const STORAGE_DATA_KEY = "vegaxlr_ctrader_multi_checklists_data";
 const STORAGE_ACTIVE_LIST_KEY = "vegaxlr_ctrader_active_checklist_id";
+const STORAGE_NOTES_OPEN_KEY = "vegaxlr_ctrader_notes_open";
 
 const checklistCard = document.getElementById("checklistCard");
 const progressCounter = document.getElementById("progressCounter");
@@ -22,6 +23,10 @@ const checklistItemsElement = document.getElementById("checklistItems");
 
 const tickAllButton = document.getElementById("tickAllButton");
 const untickAllButton = document.getElementById("untickAllButton");
+
+const notesSection = document.getElementById("notesSection");
+const notesToggleButton = document.getElementById("notesToggleButton");
+const notesTextarea = document.getElementById("notesTextarea");
 
 const exportButton = document.getElementById("exportButton");
 const importButton = document.getElementById("importButton");
@@ -119,6 +124,10 @@ let appData = {
 let activeChecklistId = null;
 let editingItemId = null;
 let draggedItemId = null;
+
+let notesOpen = false;
+let notesSaveTimeoutId = null;
+
 let pendingConfirmAction = null;
 let noticeTimeoutId = null;
 
@@ -135,6 +144,7 @@ function createDefaultData() {
             {
                 id: defaultChecklistId,
                 name: "Main Checklist",
+                notes: "",
                 items: []
             }
         ]
@@ -151,6 +161,7 @@ function normalizeImportedData(data) {
         .map((list) => ({
             id: list.id || generateId(),
             name: list.name.trim() || "Imported Checklist",
+            notes: typeof list.notes === "string" ? list.notes : "",
             items: Array.isArray(list.items)
                 ? list.items
                     .filter((item) => item && typeof item.text === "string")
@@ -192,6 +203,8 @@ function loadData() {
     const activeExists = appData.checklists.some((list) => list.id === storedActiveId);
 
     activeChecklistId = activeExists ? storedActiveId : appData.checklists[0].id;
+
+    notesOpen = localStorage.getItem(STORAGE_NOTES_OPEN_KEY) === "true";
 
     saveData();
     saveActiveChecklist();
@@ -441,8 +454,28 @@ function reorderItems(sourceItemId, targetItemId) {
     renderItems();
 }
 
+function renderNotes() {
+    const activeChecklist = getActiveChecklist();
+
+    if (!activeChecklist) {
+        notesTextarea.value = "";
+        return;
+    }
+
+    notesTextarea.value = activeChecklist.notes || "";
+
+    if (notesOpen) {
+        notesSection.classList.remove("collapsed");
+        notesToggleButton.textContent = "Notes ▾";
+    } else {
+        notesSection.classList.add("collapsed");
+        notesToggleButton.textContent = "Notes ▸";
+    }
+}
+
 function renderAll() {
     renderChecklistSelect();
+    renderNotes();
     renderItems();
 }
 
@@ -601,6 +634,7 @@ function duplicateActiveChecklist() {
     const duplicatedChecklist = {
         id: generateId(),
         name: `${activeChecklist.name} Copy`,
+        notes: activeChecklist.notes || "",
         items: activeChecklist.items.map((item) => ({
             id: generateId(),
             text: item.text,
@@ -700,6 +734,7 @@ function createChecklistFromTemplate() {
     const newChecklist = {
         id: generateId(),
         name: checklistName,
+        notes: "",
         items: template.items.map((itemText) => ({
             id: generateId(),
             text: itemText,
@@ -831,10 +866,36 @@ function runPendingConfirmAction() {
     }
 }
 
+function toggleNotesSection() {
+    notesOpen = !notesOpen;
+
+    localStorage.setItem(STORAGE_NOTES_OPEN_KEY, String(notesOpen));
+    renderNotes();
+}
+
+function saveActiveChecklistNotes() {
+    const activeChecklist = getActiveChecklist();
+
+    if (!activeChecklist) {
+        return;
+    }
+
+    activeChecklist.notes = notesTextarea.value;
+
+    if (notesSaveTimeoutId) {
+        clearTimeout(notesSaveTimeoutId);
+    }
+
+    notesSaveTimeoutId = setTimeout(() => {
+        saveData();
+    }, 250);
+}
+
 checklistSelect.addEventListener("change", () => {
     activeChecklistId = checklistSelect.value;
 
     saveActiveChecklist();
+    renderNotes();
     renderItems();
 });
 
@@ -942,6 +1003,9 @@ document.addEventListener("keydown", (event) => {
     }
 });
 
+notesToggleButton.addEventListener("click", toggleNotesSection);
+
+notesTextarea.addEventListener("input", saveActiveChecklistNotes);
 
 loadData();
 renderAll();
