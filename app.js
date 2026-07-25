@@ -1,6 +1,8 @@
 const STORAGE_DATA_KEY = "vegaxlr_ctrader_multi_checklists_data";
 const STORAGE_ACTIVE_LIST_KEY = "vegaxlr_ctrader_active_checklist_id";
 const STORAGE_NOTES_OPEN_KEY = "vegaxlr_ctrader_notes_open";
+const STORAGE_THEME_MODE_KEY = "vegaxlr_ctrader_theme_mode";
+
 
 /**
  * Reads a persisted value from the most durable storage available in the host.
@@ -66,6 +68,7 @@ const checklistSelect = document.getElementById("checklistSelect");
 const newChecklistButton = document.getElementById("newChecklistButton");
 const renameChecklistButton = document.getElementById("renameChecklistButton");
 const duplicateChecklistButton = document.getElementById("duplicateChecklistButton");
+const themeToggleButton = document.getElementById("themeToggleButton");
 const deleteChecklistButton = document.getElementById("deleteChecklistButton");
 
 const checklistItemsElement = document.getElementById("checklistItems");
@@ -172,6 +175,7 @@ let draggedItemId = null;
 
 let notesOpen = false;
 let notesSaveTimeoutId = null;
+let themeMode = "auto";
 
 let pendingConfirmAction = null;
 let noticeTimeoutId = null;
@@ -251,6 +255,8 @@ function loadData() {
 
     notesOpen = readStorageValue(STORAGE_NOTES_OPEN_KEY) === "true";
 
+    loadThemeMode();
+
     saveData();
     saveActiveChecklist();
 }
@@ -263,6 +269,60 @@ function saveActiveChecklist() {
     writeStorageValue(STORAGE_ACTIVE_LIST_KEY, activeChecklistId);
 }
 
+/**
+ * Applies the selected theme mode without touching checklist data.
+ *
+ * @param {string} mode Theme mode. Supported values: "auto", "light", "dark".
+ */
+function applyThemeMode(mode) {
+    themeMode = ["auto", "light", "dark"].includes(mode) ? mode : "auto";
+
+    if (themeMode === "auto") {
+        document.documentElement.removeAttribute("data-theme");
+    } else {
+        document.documentElement.setAttribute("data-theme", themeMode);
+    }
+
+    if (!themeToggleButton) {
+        return;
+    }
+
+    if (themeMode === "light") {
+        themeToggleButton.textContent = "☀";
+        themeToggleButton.title = "Theme: Light";
+        return;
+    }
+
+    if (themeMode === "dark") {
+        themeToggleButton.textContent = "☾";
+        themeToggleButton.title = "Theme: Dark";
+        return;
+    }
+
+    themeToggleButton.textContent = "◐";
+    themeToggleButton.title = "Theme: Auto";
+}
+
+/**
+ * Loads and applies the persisted theme mode.
+ */
+function loadThemeMode() {
+    applyThemeMode(readStorageValue(STORAGE_THEME_MODE_KEY) || "auto");
+}
+
+/**
+ * Cycles between auto, light, and dark theme modes.
+ */
+function cycleThemeMode() {
+    const nextMode = themeMode === "auto"
+        ? "light"
+        : themeMode === "light"
+            ? "dark"
+            : "auto";
+
+    applyThemeMode(nextMode);
+    writeStorageValue(STORAGE_THEME_MODE_KEY, themeMode);
+}
 
 function getActiveChecklist() {
     return appData.checklists.find((list) => list.id === activeChecklistId) || appData.checklists[0];
@@ -885,6 +945,8 @@ newChecklistButton.addEventListener("click", openTemplateModal);
 renameChecklistButton.addEventListener("click", openRenameChecklistModal);
 
 duplicateChecklistButton.addEventListener("click", duplicateActiveChecklist);
+
+themeToggleButton.addEventListener("click", cycleThemeMode);
 
 deleteChecklistButton.addEventListener("click", deleteActiveChecklist);
 
