@@ -270,6 +270,38 @@ function saveActiveChecklist() {
 }
 
 /**
+ * Resolves the "auto" theme to a concrete value using the host color scheme.
+ *
+ * Embedded cTrader webviews (Windows, Android, Web) do not reliably honor the
+ * CSS prefers-color-scheme media query, so the effective scheme is read here in
+ * JavaScript and mapped to an explicit data-theme value.
+ *
+ * @returns {string} Either "dark" or "light".
+ */
+function resolveAutoTheme() {
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        return "dark";
+    }
+
+    return "light";
+}
+
+/**
+ * Reapplies the theme when the host color scheme changes while in auto mode.
+ */
+function watchAutoTheme() {
+    if (!window.matchMedia) {
+        return;
+    }
+
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+        if (themeMode === "auto") {
+            applyThemeMode("auto");
+        }
+    });
+}
+
+/**
  * Applies the selected theme mode without touching checklist data.
  *
  * @param {string} mode Theme mode. Supported values: "auto", "light", "dark".
@@ -278,7 +310,7 @@ function applyThemeMode(mode) {
     themeMode = ["auto", "light", "dark"].includes(mode) ? mode : "auto";
 
     if (themeMode === "auto") {
-        document.documentElement.removeAttribute("data-theme");
+        document.documentElement.setAttribute("data-theme", resolveAutoTheme());
     } else {
         document.documentElement.setAttribute("data-theme", themeMode);
     }
@@ -308,6 +340,7 @@ function applyThemeMode(mode) {
  */
 function loadThemeMode() {
     applyThemeMode(readStorageValue(STORAGE_THEME_MODE_KEY) || "auto");
+    watchAutoTheme();
 }
 
 /**
@@ -464,6 +497,8 @@ function renderItems() {
             draggedItemId = item.id;
             row.classList.add("dragging");
             event.dataTransfer.effectAllowed = "move";
+            // Required by desktop webviews (WebView2/WKWebView) to start a valid drag session.
+            event.dataTransfer.setData("text/plain", item.id);
         });
 
         row.addEventListener("dragend", () => {
@@ -473,6 +508,8 @@ function renderItems() {
 
         row.addEventListener("dragover", (event) => {
             event.preventDefault();
+            // Explicit dropEffect is needed for the drop event to fire on desktop webviews.
+            event.dataTransfer.dropEffect = "move";
         });
 
         row.addEventListener("drop", (event) => {
