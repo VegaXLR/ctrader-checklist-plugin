@@ -15,6 +15,10 @@
         <section id="checklistCard" class="checklist-card">
             <header class="plugin-header">
                 <div class="title-row">
+                    <button id="themeToggleButton" class="theme-toggle-button" type="button" title="Theme: Dark">
+                        🔦
+                    </button>
+
                     <div id="readyStatus" class="ready-status">
                         ✓ Checklist complete
                     </div>
@@ -29,7 +33,14 @@
                 <div id="panelNotice" class="panel-notice" aria-live="polite"></div>
 
                 <div class="list-controls">
-                    <select id="checklistSelect" class="checklist-select" title="Select checklist"></select>
+                    <div id="checklistDropdown" class="custom-dropdown">
+                        <button id="checklistDropdownButton" class="custom-dropdown-button" type="button"
+                            title="Select checklist" aria-haspopup="listbox" aria-expanded="false">
+                            <span id="checklistDropdownLabel" class="custom-dropdown-label">Checklist</span>
+                            <span class="custom-dropdown-caret">▾</span>
+                        </button>
+                        <ul id="checklistDropdownMenu" class="custom-dropdown-menu" role="listbox"></ul>
+                    </div>
 
                     <button id="newChecklistButton" class="header-icon-button" type="button"
                         title="Create checklist from template">
@@ -44,10 +55,6 @@
                     <button id="duplicateChecklistButton" class="header-icon-button" type="button"
                         title="Duplicate selected checklist">
                         ⧉
-                    </button>
-
-                    <button id="themeToggleButton" class="header-icon-button" type="button" title="Theme: Auto">
-                        ◐
                     </button>
 
                     <button id="deleteChecklistButton" class="header-icon-button danger" type="button"

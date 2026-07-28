@@ -44,7 +44,11 @@ const confirmMessage = document.getElementById("confirmMessage");
 const cancelConfirmButton = document.getElementById("cancelConfirmButton");
 const confirmActionButton = document.getElementById("confirmActionButton");
 
-const checklistSelect = document.getElementById("checklistSelect");
+const checklistDropdown = document.getElementById("checklistDropdown");
+const checklistDropdownButton = document.getElementById("checklistDropdownButton");
+const checklistDropdownLabel = document.getElementById("checklistDropdownLabel");
+const checklistDropdownMenu = document.getElementById("checklistDropdownMenu");
+
 const newChecklistButton = document.getElementById("newChecklistButton");
 const renameChecklistButton = document.getElementById("renameChecklistButton");
 const duplicateChecklistButton = document.getElementById("duplicateChecklistButton");
@@ -155,7 +159,7 @@ let draggedItemId = null;
 
 let notesOpen = false;
 let notesSaveTimeoutId = null;
-let themeMode = "auto";
+let themeMode = "dark";
 
 let pendingConfirmAction = null;
 let noticeTimeoutId = null;
@@ -250,112 +254,44 @@ function saveActiveChecklist() {
 }
 
 /**
- * Resolves the "auto" theme using multiple detection strategies, since
- * prefers-color-scheme is unreliable across embedded cTrader webviews
- * (WebView2 on Windows, WebView on Android, and cTrader Web iframe).
+ * Applies the selected theme mode. Only "dark" and "light" are supported;
+ * "dark" is the default.
  *
- * @returns {string} Either "dark" or "light".
- */
-function resolveAutoTheme() {
-    // Strategy 1: matchMedia (reliable on macOS WKWebView).
-    const mediaQuery = window.matchMedia
-        ? window.matchMedia("(prefers-color-scheme: dark)")
-        : null;
-
-    if (mediaQuery && typeof mediaQuery.media === "string" && mediaQuery.media !== "not all") {
-        return mediaQuery.matches ? "dark" : "light";
-    }
-
-    // Strategy 2: inspect computed background-color of <body> as set by host CSS,
-    // useful when the host injects its own theme class/style before our script runs.
-    try {
-        const computedBg = window.getComputedStyle(document.body).backgroundColor;
-        const rgbMatch = computedBg.match(/\d+/g);
-
-        if (rgbMatch && rgbMatch.length >= 3) {
-            const [r, g, b] = rgbMatch.map(Number);
-            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-            return luminance < 0.5 ? "dark" : "light";
-        }
-    } catch {
-        // Ignore and fall through to default.
-    }
-
-    // Strategy 3: safe default (assume light).
-    return "light";
-}
-
-
-/**
- * Reapplies the theme when the host color scheme changes while in auto mode.
- */
-function watchAutoTheme() {
-    if (!window.matchMedia) {
-        return;
-    }
-
-    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-        if (themeMode === "auto") {
-            applyThemeMode("auto");
-        }
-    });
-}
-
-/**
- * Applies the selected theme mode without touching checklist data.
- *
- * @param {string} mode Theme mode. Supported values: "auto", "light", "dark".
+ * @param {string} mode Theme mode. Supported values: "light", "dark".
  */
 function applyThemeMode(mode) {
-    themeMode = ["auto", "light", "dark"].includes(mode) ? mode : "auto";
+    themeMode = mode === "light" ? "light" : "dark";
 
-    if (themeMode === "auto") {
-        document.documentElement.setAttribute("data-theme", resolveAutoTheme());
-    } else {
-        document.documentElement.setAttribute("data-theme", themeMode);
-    }
+    document.documentElement.setAttribute("data-theme", themeMode);
 
     if (!themeToggleButton) {
         return;
     }
 
     if (themeMode === "light") {
-        themeToggleButton.textContent = "☀";
+        themeToggleButton.classList.remove("is-dark");
         themeToggleButton.title = "Theme: Light";
-        return;
-    }
-
-    if (themeMode === "dark") {
-        themeToggleButton.textContent = "☾";
+    } else {
+        themeToggleButton.classList.add("is-dark");
         themeToggleButton.title = "Theme: Dark";
-        return;
     }
-
-    themeToggleButton.textContent = "◐";
-    themeToggleButton.title = "Theme: Auto";
 }
 
 /**
- * Loads and applies the persisted theme mode.
+ * Loads and applies the persisted theme mode (defaults to dark).
  */
 function loadThemeMode() {
-    applyThemeMode(readStorageValue(STORAGE_THEME_MODE_KEY) || "auto");
-    watchAutoTheme();
+    applyThemeMode(readStorageValue(STORAGE_THEME_MODE_KEY) || "dark");
 }
 
 /**
- * Cycles between auto, light, and dark theme modes.
+ * Toggles between light and dark theme modes.
  */
 function cycleThemeMode() {
-    const nextMode = themeMode === "auto"
-        ? "light"
-        : themeMode === "light"
-            ? "dark"
-            : "auto";
-
-    applyThemeMode(nextMode);
+    applyThemeMode(themeMode === "dark" ? "light" : "dark");
     writeStorageValue(STORAGE_THEME_MODE_KEY, themeMode);
 }
+
 
 function getActiveChecklist() {
     return appData.checklists.find((list) => list.id === activeChecklistId) || appData.checklists[0];
@@ -426,21 +362,55 @@ function updateProgressState() {
 }
 
 function renderChecklistSelect() {
-    checklistSelect.innerHTML = "";
+    checklistDropdownMenu.innerHTML = "";
+
+    const activeChecklist = getActiveChecklist();
+    checklistDropdownLabel.textContent = activeChecklist ? activeChecklist.name : "Checklist";
 
     appData.checklists.forEach((list) => {
-        const option = document.createElement("option");
-        option.value = list.id;
+        const option = document.createElement("li");
+        option.className = "custom-dropdown-option";
+        option.setAttribute("role", "option");
+        option.dataset.id = list.id;
         option.textContent = list.name;
 
         if (list.id === activeChecklistId) {
-            option.selected = true;
+            option.classList.add("selected");
+            option.setAttribute("aria-selected", "true");
         }
 
-        checklistSelect.appendChild(option);
+        option.addEventListener("click", () => {
+            activeChecklistId = list.id;
+            closeChecklistDropdown();
+
+            saveActiveChecklist();
+            renderChecklistSelect();
+            renderNotes();
+            renderItems();
+        });
+
+        checklistDropdownMenu.appendChild(option);
     });
 
     deleteChecklistButton.disabled = appData.checklists.length <= 1;
+}
+
+function openChecklistDropdown() {
+    checklistDropdown.classList.add("open");
+    checklistDropdownButton.setAttribute("aria-expanded", "true");
+}
+
+function closeChecklistDropdown() {
+    checklistDropdown.classList.remove("open");
+    checklistDropdownButton.setAttribute("aria-expanded", "false");
+}
+
+function toggleChecklistDropdown() {
+    if (checklistDropdown.classList.contains("open")) {
+        closeChecklistDropdown();
+    } else {
+        openChecklistDropdown();
+    }
 }
 
 function createAddButtonRow() {
@@ -492,12 +462,7 @@ function renderItems() {
 
         row.dataset.itemId = item.id;
 
-        const dragHandle = document.createElement("div");
-        dragHandle.className = "drag-handle";
-        dragHandle.title = "Drag to reorder";
-        dragHandle.textContent = "⋮⋮";
-
-        attachPointerDrag(dragHandle, row, item.id);
+        attachPointerDrag(row, row, item.id);
 
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
@@ -545,7 +510,6 @@ function renderItems() {
             deleteItem(item.id);
         });
 
-        row.appendChild(dragHandle);
         row.appendChild(checkbox);
         row.appendChild(itemContent);
         row.appendChild(editButton);
@@ -558,50 +522,68 @@ function renderItems() {
 }
 
 /**
- * Attaches a Pointer Events based drag interaction to a row.
+ * Attaches a Pointer Events based drag interaction to the whole row.
  *
- * Pointer capture is set on `document` (not on the small handle) so movement
- * is tracked correctly even when the finger/cursor moves beyond the handle's
- * bounds — this fixes downward drag failure on Android. A visual "ghost"
- * clone of the row follows the pointer during the drag for feedback across
- * all platforms.
+ * The drag starts anywhere on the row EXCEPT on the checkbox, edit button,
+ * or delete button, so those controls keep working normally. A small movement
+ * threshold prevents accidental reordering on simple taps. A floating "ghost"
+ * clone follows the pointer for visual feedback.
  *
- * @param {HTMLElement} handle Drag handle element that starts the interaction.
+ * @param {HTMLElement} surface Element that receives the pointerdown listener.
  * @param {HTMLElement} row Checklist row element being dragged.
  * @param {string} itemId Id of the checklist item represented by the row.
  */
-function attachPointerDrag(handle, row, itemId) {
-    handle.addEventListener("pointerdown", (event) => {
-        event.preventDefault();
+function attachPointerDrag(surface, row, itemId) {
+    surface.addEventListener("pointerdown", (event) => {
+        // Ignore drags that start on interactive controls.
+        if (event.target.closest("input[type=\"checkbox\"], .edit-button, .delete-button")) {
+            return;
+        }
 
-        draggedItemId = itemId;
-        row.classList.add("dragging");
+        const startX = event.clientX;
+        const startY = event.clientY;
 
-        // Capture on document to avoid losing pointermove when the finger/cursor
-        // moves outside the small handle's hit area (critical fix for Android).
-        document.body.setPointerCapture
-            ? document.body.setPointerCapture(event.pointerId)
-            : null;
-
+        let dragging = false;
+        let ghost = null;
         let currentTargetItemId = null;
 
-        // Create a floating ghost clone that follows the pointer.
-        const ghost = row.cloneNode(true);
-        ghost.classList.add("drag-ghost");
-        ghost.style.width = `${row.offsetWidth}px`;
-        document.body.appendChild(ghost);
+        const startDrag = () => {
+            dragging = true;
+            draggedItemId = itemId;
+            row.classList.add("dragging");
+
+            ghost = row.cloneNode(true);
+            ghost.classList.add("drag-ghost");
+            ghost.style.width = `${row.offsetWidth}px`;
+            document.body.appendChild(ghost);
+
+            moveGhost(startX, startY);
+        };
 
         const moveGhost = (clientX, clientY) => {
+            if (!ghost) {
+                return;
+            }
             ghost.style.left = `${clientX - ghost.offsetWidth / 2}px`;
             ghost.style.top = `${clientY - 16}px`;
         };
 
-        moveGhost(event.clientX, event.clientY);
-
         const onPointerMove = (moveEvent) => {
+            const deltaX = Math.abs(moveEvent.clientX - startX);
+            const deltaY = Math.abs(moveEvent.clientY - startY);
+
+            // Only begin dragging after a small threshold, so taps still work.
+            if (!dragging && (deltaX > 6 || deltaY > 6)) {
+                startDrag();
+            }
+
+            if (!dragging) {
+                return;
+            }
+
+            moveEvent.preventDefault();
             moveGhost(moveEvent.clientX, moveEvent.clientY);
 
-            // Temporarily hide the ghost so elementsFromPoint can see the row underneath.
             ghost.style.visibility = "hidden";
 
             const targetRow = document
@@ -616,29 +598,27 @@ function attachPointerDrag(handle, row, itemId) {
         };
 
         const onPointerUp = () => {
-            document.body.releasePointerCapture
-                ? document.body.releasePointerCapture(event.pointerId)
-                : null;
-
             document.removeEventListener("pointermove", onPointerMove);
             document.removeEventListener("pointerup", onPointerUp);
             document.removeEventListener("pointercancel", onPointerUp);
 
-            ghost.remove();
-            draggedItemId = null;
-            row.classList.remove("dragging");
+            if (ghost) {
+                ghost.remove();
+            }
 
-            if (currentTargetItemId) {
+            row.classList.remove("dragging");
+            draggedItemId = null;
+
+            if (dragging && currentTargetItemId) {
                 reorderItems(itemId, currentTargetItemId);
             }
         };
 
-        document.addEventListener("pointermove", onPointerMove);
+        document.addEventListener("pointermove", onPointerMove, { passive: false });
         document.addEventListener("pointerup", onPointerUp);
         document.addEventListener("pointercancel", onPointerUp);
     });
 }
-
 
 function reorderItems(sourceItemId, targetItemId) {
     if (!sourceItemId || !targetItemId || sourceItemId === targetItemId) {
@@ -1029,13 +1009,23 @@ function saveActiveChecklistNotes() {
     }, 250);
 }
 
-checklistSelect.addEventListener("change", () => {
-    activeChecklistId = checklistSelect.value;
-
-    saveActiveChecklist();
-    renderNotes();
-    renderItems();
+checklistDropdownButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleChecklistDropdown();
 });
+
+document.addEventListener("click", (event) => {
+    if (!checklistDropdown.contains(event.target)) {
+        closeChecklistDropdown();
+    }
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        closeChecklistDropdown();
+    }
+});
+
 
 newChecklistButton.addEventListener("click", openTemplateModal);
 
