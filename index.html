@@ -144,7 +144,15 @@
         <div class="modal">
             <h2>Create checklist</h2>
 
-            <select id="templateSelect" class="modal-select"></select>
+            <div id="templateDropdown" class="custom-dropdown modal-dropdown">
+                <button id="templateDropdownButton" class="custom-dropdown-button" type="button" title="Select template"
+                    aria-haspopup="listbox" aria-expanded="false">
+                    <span id="templateDropdownLabel" class="custom-dropdown-label">Template</span>
+                    <span class="custom-dropdown-caret">▾</span>
+                </button>
+
+                <ul id="templateDropdownMenu" class="custom-dropdown-menu" role="listbox"></ul>
+            </div>
 
             <input id="templateNameInput" type="text" maxlength="60" placeholder="Checklist name..."
                 class="template-name-input" />
@@ -162,6 +170,7 @@
             </div>
         </div>
     </section>
+
 
     <section id="confirmModal" class="modal-backdrop" aria-hidden="true">
         <div class="modal">

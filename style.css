@@ -130,7 +130,7 @@ input {
 
 .plugin-header {
     position: relative;
-    z-index: 1;
+    z-index: 3000;
 
     display: flex;
     flex-direction: column;
@@ -138,7 +138,10 @@ input {
 
     padding: 10px 10px 8px;
     border-bottom: 1px solid var(--border);
+
+    background: var(--card-bg);
 }
+
 
 .title-row {
     display: grid;
@@ -381,7 +384,7 @@ input {
     top: calc(100% + 4px);
     left: 0;
     right: 0;
-    z-index: 50;
+    z-index: 9000;
 
     display: none;
     margin: 0;
@@ -396,6 +399,23 @@ input {
     background: var(--card-bg);
     box-shadow: 0 8px 24px var(--shadow);
 }
+
+.modal-dropdown {
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.modal-dropdown .custom-dropdown-button {
+    height: 34px;
+    background: var(--page-bg);
+    font-size: 13px;
+}
+
+.modal-dropdown .custom-dropdown-menu {
+    z-index: 12000;
+    max-height: 180px;
+}
+
 
 .custom-dropdown.open .custom-dropdown-menu {
     display: block;
@@ -633,10 +653,10 @@ input {
 
     border-bottom: 1px solid var(--border);
 
-    cursor: grab;
     user-select: none;
     touch-action: pan-y;
 }
+
 
 .checklist-row:active {
     cursor: grabbing;
@@ -649,15 +669,43 @@ input {
 .drag-handle {
     flex: 0 0 auto;
 
-    width: 14px;
+    width: 20px;
+    height: 26px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1;
 
     cursor: grab;
     user-select: none;
     touch-action: none;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.drag-ghost {
+    position: fixed;
+    z-index: 20000;
+
+    pointer-events: none;
+
+    opacity: 0.92;
+    transform: scale(1.01);
+
+    background: var(--card-bg);
+    border: 1px solid var(--accent);
+    border-radius: 7px;
+    box-shadow: 0 10px 28px var(--shadow);
+}
+
+.checklist-row.dragging {
+    opacity: 0.35;
 }
 
 .checklist-row input[type="checkbox"] {
@@ -816,7 +864,7 @@ input {
 .modal-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 100;
+    z-index: 10000;
 
     display: none;
     align-items: center;
@@ -832,6 +880,9 @@ input {
 }
 
 .modal {
+    position: relative;
+    z-index: 10001;
+
     width: 100%;
     max-width: 330px;
 

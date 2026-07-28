@@ -77,9 +77,15 @@ const cancelChecklistModalButton = document.getElementById("cancelChecklistModal
 const saveChecklistButton = document.getElementById("saveChecklistButton");
 
 const templateModal = document.getElementById("templateModal");
-const templateSelect = document.getElementById("templateSelect");
+
+const templateDropdown = document.getElementById("templateDropdown");
+const templateDropdownButton = document.getElementById("templateDropdownButton");
+const templateDropdownLabel = document.getElementById("templateDropdownLabel");
+const templateDropdownMenu = document.getElementById("templateDropdownMenu");
+
 const templateNameInput = document.getElementById("templateNameInput");
 const templatePreview = document.getElementById("templatePreview");
+
 const cancelTemplateModalButton = document.getElementById("cancelTemplateModalButton");
 const createFromTemplateButton = document.getElementById("createFromTemplateButton");
 
@@ -163,6 +169,7 @@ let themeMode = "dark";
 
 let pendingConfirmAction = null;
 let noticeTimeoutId = null;
+let selectedTemplateIndex = 0;
 
 function generateId() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -409,8 +416,14 @@ function toggleChecklistDropdown() {
     if (checklistDropdown.classList.contains("open")) {
         closeChecklistDropdown();
     } else {
+        closeTemplateDropdown();
         openChecklistDropdown();
     }
+}
+
+function closeAllDropdowns() {
+    closeChecklistDropdown();
+    closeTemplateDropdown();
 }
 
 function createAddButtonRow() {
@@ -462,7 +475,12 @@ function renderItems() {
 
         row.dataset.itemId = item.id;
 
-        attachPointerDrag(row, row, item.id);
+        const dragHandle = document.createElement("div");
+        dragHandle.className = "drag-handle";
+        dragHandle.title = "Drag to reorder";
+        dragHandle.textContent = "⋮⋮";
+
+        attachPointerDrag(dragHandle, row, item.id);
 
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
@@ -510,6 +528,7 @@ function renderItems() {
             deleteItem(item.id);
         });
 
+        row.appendChild(dragHandle);
         row.appendChild(checkbox);
         row.appendChild(itemContent);
         row.appendChild(editButton);
@@ -535,45 +554,109 @@ function renderItems() {
  */
 function attachPointerDrag(surface, row, itemId) {
     surface.addEventListener("pointerdown", (event) => {
-        // Ignore drags that start on interactive controls.
-        if (event.target.closest("input[type=\"checkbox\"], .edit-button, .delete-button")) {
+        if (event.button !== undefined && event.button !== 0) {
             return;
         }
 
+        if (event.target.closest("input, button, textarea, select")) {
+            return;
+        }
+
+        const activeChecklist = getActiveChecklist();
+
+        if (!activeChecklist || activeChecklist.items.length < 2) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        closeAllDropdowns();
+
+        const pointerId = event.pointerId;
         const startX = event.clientX;
         const startY = event.clientY;
 
         let dragging = false;
         let ghost = null;
         let currentTargetItemId = null;
+        let lastClientX = startX;
+        let lastClientY = startY;
 
-        const startDrag = () => {
-            dragging = true;
-            draggedItemId = itemId;
-            row.classList.add("dragging");
-
+        const createGhost = () => {
             ghost = row.cloneNode(true);
             ghost.classList.add("drag-ghost");
             ghost.style.width = `${row.offsetWidth}px`;
-            document.body.appendChild(ghost);
+            ghost.style.left = `${startX - row.offsetWidth / 2}px`;
+            ghost.style.top = `${startY - row.offsetHeight / 2}px`;
 
-            moveGhost(startX, startY);
+            document.body.appendChild(ghost);
         };
 
         const moveGhost = (clientX, clientY) => {
             if (!ghost) {
                 return;
             }
+
             ghost.style.left = `${clientX - ghost.offsetWidth / 2}px`;
-            ghost.style.top = `${clientY - 16}px`;
+            ghost.style.top = `${clientY - ghost.offsetHeight / 2}px`;
+        };
+
+        const startDrag = () => {
+            if (dragging) {
+                return;
+            }
+
+            dragging = true;
+            draggedItemId = itemId;
+
+            row.classList.add("dragging");
+
+            try {
+                surface.setPointerCapture(pointerId);
+            } catch {
+                // Some embedded Android webviews may fail pointer capture.
+            }
+
+            createGhost();
+            moveGhost(lastClientX, lastClientY);
+        };
+
+        const updateTargetFromPoint = (clientX, clientY) => {
+            if (!ghost) {
+                return;
+            }
+
+            ghost.style.visibility = "hidden";
+
+            const targetRow = document
+                .elementsFromPoint(clientX, clientY)
+                .find((element) => {
+                    return element.classList &&
+                        element.classList.contains("checklist-row") &&
+                        element.dataset.itemId &&
+                        element.dataset.itemId !== itemId;
+                });
+
+            ghost.style.visibility = "visible";
+
+            if (targetRow) {
+                currentTargetItemId = targetRow.dataset.itemId;
+            }
         };
 
         const onPointerMove = (moveEvent) => {
-            const deltaX = Math.abs(moveEvent.clientX - startX);
-            const deltaY = Math.abs(moveEvent.clientY - startY);
+            if (moveEvent.pointerId !== pointerId) {
+                return;
+            }
 
-            // Only begin dragging after a small threshold, so taps still work.
-            if (!dragging && (deltaX > 6 || deltaY > 6)) {
+            lastClientX = moveEvent.clientX;
+            lastClientY = moveEvent.clientY;
+
+            const deltaX = Math.abs(lastClientX - startX);
+            const deltaY = Math.abs(lastClientY - startY);
+
+            if (!dragging && (deltaX > 4 || deltaY > 4)) {
                 startDrag();
             }
 
@@ -582,28 +665,30 @@ function attachPointerDrag(surface, row, itemId) {
             }
 
             moveEvent.preventDefault();
-            moveGhost(moveEvent.clientX, moveEvent.clientY);
+            moveEvent.stopPropagation();
 
-            ghost.style.visibility = "hidden";
-
-            const targetRow = document
-                .elementsFromPoint(moveEvent.clientX, moveEvent.clientY)
-                .find((element) => element.classList && element.classList.contains("checklist-row"));
-
-            ghost.style.visibility = "visible";
-
-            if (targetRow && targetRow.dataset.itemId && targetRow.dataset.itemId !== itemId) {
-                currentTargetItemId = targetRow.dataset.itemId;
-            }
+            moveGhost(lastClientX, lastClientY);
+            updateTargetFromPoint(lastClientX, lastClientY);
         };
 
-        const onPointerUp = () => {
+        const finishDrag = (endEvent) => {
+            if (endEvent && endEvent.pointerId !== pointerId) {
+                return;
+            }
+
             document.removeEventListener("pointermove", onPointerMove);
-            document.removeEventListener("pointerup", onPointerUp);
-            document.removeEventListener("pointercancel", onPointerUp);
+            document.removeEventListener("pointerup", finishDrag);
+            document.removeEventListener("pointercancel", finishDrag);
+
+            try {
+                surface.releasePointerCapture(pointerId);
+            } catch {
+                // Safe fallback for Android webviews.
+            }
 
             if (ghost) {
                 ghost.remove();
+                ghost = null;
             }
 
             row.classList.remove("dragging");
@@ -612,12 +697,15 @@ function attachPointerDrag(surface, row, itemId) {
             if (dragging && currentTargetItemId) {
                 reorderItems(itemId, currentTargetItemId);
             }
+
+            dragging = false;
+            currentTargetItemId = null;
         };
 
         document.addEventListener("pointermove", onPointerMove, { passive: false });
-        document.addEventListener("pointerup", onPointerUp);
-        document.addEventListener("pointercancel", onPointerUp);
-    });
+        document.addEventListener("pointerup", finishDrag);
+        document.addEventListener("pointercancel", finishDrag);
+    }, { passive: false });
 }
 
 function reorderItems(sourceItemId, targetItemId) {
@@ -864,24 +952,63 @@ function deleteActiveChecklist() {
     });
 }
 
+function openTemplateDropdown() {
+    templateDropdown.classList.add("open");
+    templateDropdownButton.setAttribute("aria-expanded", "true");
+}
+
+function closeTemplateDropdown() {
+    if (!templateDropdown) {
+        return;
+    }
+
+    templateDropdown.classList.remove("open");
+    templateDropdownButton.setAttribute("aria-expanded", "false");
+}
+
+function toggleTemplateDropdown() {
+    if (templateDropdown.classList.contains("open")) {
+        closeTemplateDropdown();
+    } else {
+        closeChecklistDropdown();
+        openTemplateDropdown();
+    }
+}
+
 function renderTemplateOptions() {
-    templateSelect.innerHTML = "";
+    selectedTemplateIndex = 0;
+    templateDropdownMenu.innerHTML = "";
 
     TEMPLATES.forEach((template, index) => {
-        const option = document.createElement("option");
-        option.value = String(index);
+        const option = document.createElement("li");
+        option.className = "custom-dropdown-option";
+        option.setAttribute("role", "option");
+        option.dataset.index = String(index);
         option.textContent = template.name;
 
-        templateSelect.appendChild(option);
+        if (index === selectedTemplateIndex) {
+            option.classList.add("selected");
+            option.setAttribute("aria-selected", "true");
+        }
+
+        option.addEventListener("click", () => {
+            selectedTemplateIndex = index;
+
+            closeTemplateDropdown();
+            renderTemplateOptions();
+            renderTemplatePreview();
+        });
+
+        templateDropdownMenu.appendChild(option);
     });
 
-    templateSelect.value = "0";
     renderTemplatePreview();
 }
 
 function renderTemplatePreview() {
-    const template = TEMPLATES[Number(templateSelect.value)] || TEMPLATES[0];
+    const template = TEMPLATES[selectedTemplateIndex] || TEMPLATES[0];
 
+    templateDropdownLabel.textContent = template.name;
     templateNameInput.value = template.name;
 
     if (!template.items.length) {
@@ -895,6 +1022,7 @@ function renderTemplatePreview() {
 
     templatePreview.innerHTML = `<ul>${itemsHtml}</ul>`;
 }
+
 
 function openTemplateModal() {
     renderTemplateOptions();
@@ -914,7 +1042,7 @@ function closeTemplateModal() {
 }
 
 function createChecklistFromTemplate() {
-    const template = TEMPLATES[Number(templateSelect.value)] || TEMPLATES[0];
+    const template = TEMPLATES[selectedTemplateIndex] || TEMPLATES[0];
     const checklistName = templateNameInput.value.trim() || template.name;
 
     const newChecklist = {
@@ -1015,14 +1143,19 @@ checklistDropdownButton.addEventListener("click", (event) => {
 });
 
 document.addEventListener("click", (event) => {
-    if (!checklistDropdown.contains(event.target)) {
+    if (checklistDropdown && !checklistDropdown.contains(event.target)) {
         closeChecklistDropdown();
+    }
+
+    if (templateDropdown && !templateDropdown.contains(event.target)) {
+        closeTemplateDropdown();
     }
 });
 
 document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
         closeChecklistDropdown();
+        closeTemplateDropdown();
     }
 });
 
@@ -1081,7 +1214,10 @@ checklistModal.addEventListener("click", (event) => {
     }
 });
 
-templateSelect.addEventListener("change", renderTemplatePreview);
+templateDropdownButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleTemplateDropdown();
+});
 
 cancelTemplateModalButton.addEventListener("click", closeTemplateModal);
 
