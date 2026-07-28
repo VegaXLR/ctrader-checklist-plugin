@@ -1,15 +1,3 @@
-import { createClientAdapter } from '@spotware-web-team/sdk-external-api';
-import { getAccountInformation, registerEvent } from '@spotware-web-team/sdk';
-
-// Inicializa o cliente para comunicação com o cTrader
-const clientApi = createClientAdapter();
-
-// Exemplo de chamada
-getAccountInformation(clientApi).subscribe({
-    next: (info) => console.log('Informações da conta:', info),
-    error: (err) => console.error('Erro:', err)
-});
-
 const STORAGE_DATA_KEY = "vegaxlr_ctrader_multi_checklists_data";
 const STORAGE_ACTIVE_LIST_KEY = "vegaxlr_ctrader_active_checklist_id";
 const STORAGE_NOTES_OPEN_KEY = "vegaxlr_ctrader_notes_open";
@@ -17,24 +5,12 @@ const STORAGE_THEME_MODE_KEY = "vegaxlr_ctrader_theme_mode";
 
 
 /**
- * Reads a persisted value from the most durable storage available in the host.
+ * Reads a persisted value from localStorage.
  *
  * @param {string} key Storage key.
  * @returns {string|null} Persisted value, or null when not found.
  */
 function readStorageValue(key) {
-    try {
-        if (window.ctrader && window.ctrader.storage && typeof window.ctrader.storage.getItem === "function") {
-            const hostValue = window.ctrader.storage.getItem(key);
-
-            if (hostValue !== null && hostValue !== undefined) {
-                return hostValue;
-            }
-        }
-    } catch {
-        // Fall back to localStorage.
-    }
-
     try {
         return localStorage.getItem(key);
     } catch {
@@ -43,7 +19,7 @@ function readStorageValue(key) {
 }
 
 /**
- * Persists a value to every supported storage layer.
+ * Persists a value to localStorage.
  *
  * @param {string} key Storage key.
  * @param {string} value Value to persist.
@@ -52,15 +28,7 @@ function writeStorageValue(key, value) {
     try {
         localStorage.setItem(key, value);
     } catch {
-        // Ignore localStorage write failures.
-    }
-
-    try {
-        if (window.ctrader && window.ctrader.storage && typeof window.ctrader.storage.setItem === "function") {
-            window.ctrader.storage.setItem(key, value);
-        }
-    } catch {
-        // Ignore host storage write failures.
+        // Ignore localStorage write failures (e.g. storage disabled or full).
     }
 }
 
@@ -1167,4 +1135,3 @@ notesTextarea.addEventListener("input", saveActiveChecklistNotes);
 
 loadData();
 renderAll();
-
