@@ -24,12 +24,14 @@
                     <div id="progressCounter" class="progress-counter">
                         0/0
                     </div>
+                    <button id="themeToggleButton" class="theme-switch" type="button" title="Toggle Theme"></button>
                 </div>
 
                 <div id="panelNotice" class="panel-notice" aria-live="polite"></div>
 
                 <div class="list-controls">
-                    <select id="checklistSelect" class="checklist-select" title="Select checklist"></select>
+                    <button id="checklistSelectBtn" class="checklist-select-btn" type="button"
+                        title="Select checklist"></button>
 
                     <button id="newChecklistButton" class="header-icon-button" type="button"
                         title="Create checklist from template">
@@ -44,10 +46,6 @@
                     <button id="duplicateChecklistButton" class="header-icon-button" type="button"
                         title="Duplicate selected checklist">
                         ⧉
-                    </button>
-
-                    <button id="themeToggleButton" class="header-icon-button" type="button" title="Theme: Auto">
-                        ◐
                     </button>
 
                     <button id="deleteChecklistButton" class="header-icon-button danger" type="button"
@@ -137,7 +135,7 @@
         <div class="modal">
             <h2>Create checklist</h2>
 
-            <select id="templateSelect" class="modal-select"></select>
+            <div id="templateList" class="template-list"></div>
 
             <input id="templateNameInput" type="text" maxlength="60" placeholder="Checklist name..."
                 class="template-name-input" />
@@ -176,6 +174,15 @@
         </div>
     </section>
 
+    <section id="selectChecklistModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal">
+            <h2>Select Checklist</h2>
+            <div id="checklistOptions" class="template-list"></div>
+            <div class="modal-actions">
+                <button id="cancelSelectChecklistBtn" class="modal-button secondary" type="button">Cancel</button>
+            </div>
+        </div>
+    </section>
 
     <script src="app.js"></script>
 </body>

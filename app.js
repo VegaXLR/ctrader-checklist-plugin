@@ -155,7 +155,8 @@ let draggedItemId = null;
 
 let notesOpen = false;
 let notesSaveTimeoutId = null;
-let themeMode = "auto";
+let themeMode = "light";
+let selectedTemplateIndex = 0;
 
 let pendingConfirmAction = null;
 let noticeTimeoutId = null;
@@ -302,57 +303,27 @@ function watchAutoTheme() {
 }
 
 /**
- * Applies the selected theme mode without touching checklist data.
+ * Applies the selected theme mode.
  *
- * @param {string} mode Theme mode. Supported values: "auto", "light", "dark".
+ * @param {string} mode Theme mode. Supported values: "light", "dark".
  */
 function applyThemeMode(mode) {
-    themeMode = ["auto", "light", "dark"].includes(mode) ? mode : "auto";
-
-    if (themeMode === "auto") {
-        document.documentElement.setAttribute("data-theme", resolveAutoTheme());
-    } else {
-        document.documentElement.setAttribute("data-theme", themeMode);
-    }
-
-    if (!themeToggleButton) {
-        return;
-    }
-
-    if (themeMode === "light") {
-        themeToggleButton.textContent = "☀";
-        themeToggleButton.title = "Theme: Light";
-        return;
-    }
-
-    if (themeMode === "dark") {
-        themeToggleButton.textContent = "☾";
-        themeToggleButton.title = "Theme: Dark";
-        return;
-    }
-
-    themeToggleButton.textContent = "◐";
-    themeToggleButton.title = "Theme: Auto";
+    themeMode = mode === "dark" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", themeMode);
 }
 
 /**
  * Loads and applies the persisted theme mode.
  */
 function loadThemeMode() {
-    applyThemeMode(readStorageValue(STORAGE_THEME_MODE_KEY) || "auto");
-    watchAutoTheme();
+    applyThemeMode(readStorageValue(STORAGE_THEME_MODE_KEY) || "light");
 }
 
 /**
- * Cycles between auto, light, and dark theme modes.
+ * Toggles between light and dark theme modes.
  */
 function cycleThemeMode() {
-    const nextMode = themeMode === "auto"
-        ? "light"
-        : themeMode === "light"
-            ? "dark"
-            : "auto";
-
+    const nextMode = themeMode === "light" ? "dark" : "light";
     applyThemeMode(nextMode);
     writeStorageValue(STORAGE_THEME_MODE_KEY, themeMode);
 }
@@ -426,22 +397,42 @@ function updateProgressState() {
 }
 
 function renderChecklistSelect() {
-    checklistSelect.innerHTML = "";
-
-    appData.checklists.forEach((list) => {
-        const option = document.createElement("option");
-        option.value = list.id;
-        option.textContent = list.name;
-
-        if (list.id === activeChecklistId) {
-            option.selected = true;
-        }
-
-        checklistSelect.appendChild(option);
-    });
-
+    const active = getActiveChecklist();
+    checklistSelectBtn.textContent = active ? active.name : "Select...";
     deleteChecklistButton.disabled = appData.checklists.length <= 1;
 }
+
+/**
+ * Opens the custom modal to select a checklist.
+ */
+function openSelectChecklistModal() {
+    checklistOptions.innerHTML = "";
+    appData.checklists.forEach((list) => {
+        const btn = document.createElement("button");
+        btn.className = "template-option" + (list.id === activeChecklistId ? " selected" : "");
+        btn.textContent = list.name;
+        btn.onclick = () => {
+            activeChecklistId = list.id;
+            saveActiveChecklist();
+            renderNotes();
+            renderItems();
+            renderChecklistSelect();
+            closeSelectChecklistModal();
+        };
+        checklistOptions.appendChild(btn);
+    });
+    selectChecklistModal.classList.add("visible");
+    selectChecklistModal.setAttribute("aria-hidden", "false");
+}
+
+/**
+ * Closes the custom checklist selection modal.
+ */
+function closeSelectChecklistModal() {
+    selectChecklistModal.classList.remove("visible");
+    selectChecklistModal.setAttribute("aria-hidden", "true");
+}
+
 
 function createAddButtonRow() {
     const addRow = document.createElement("div");
@@ -492,10 +483,7 @@ function renderItems() {
 
         row.dataset.itemId = item.id;
 
-        const dragHandle = document.createElement("div");
-        dragHandle.className = "drag-handle";
-        dragHandle.title = "Drag to reorder";
-        dragHandle.textContent = "⋮⋮";
+        // Drag handle removido
 
         attachPointerDrag(dragHandle, row, item.id);
 
@@ -511,6 +499,10 @@ function renderItems() {
 
         const itemContent = document.createElement("div");
         itemContent.className = "item-content";
+        itemContent.style.cursor = "grab";
+        itemContent.style.touchAction = "none";
+
+        attachPointerDrag(itemContent, row, item.id);
 
         const label = document.createElement("div");
         label.className = "item-label";
@@ -545,7 +537,6 @@ function renderItems() {
             deleteItem(item.id);
         });
 
-        row.appendChild(dragHandle);
         row.appendChild(checkbox);
         row.appendChild(itemContent);
         row.appendChild(editButton);
@@ -885,22 +876,22 @@ function deleteActiveChecklist() {
 }
 
 function renderTemplateOptions() {
-    templateSelect.innerHTML = "";
-
+    templateList.innerHTML = "";
     TEMPLATES.forEach((template, index) => {
-        const option = document.createElement("option");
-        option.value = String(index);
-        option.textContent = template.name;
-
-        templateSelect.appendChild(option);
+        const btn = document.createElement("button");
+        btn.className = "template-option" + (index === selectedTemplateIndex ? " selected" : "");
+        btn.textContent = template.name;
+        btn.onclick = () => {
+            selectedTemplateIndex = index;
+            renderTemplateOptions();
+            renderTemplatePreview();
+        };
+        templateList.appendChild(btn);
     });
-
-    templateSelect.value = "0";
-    renderTemplatePreview();
 }
 
 function renderTemplatePreview() {
-    const template = TEMPLATES[Number(templateSelect.value)] || TEMPLATES[0];
+    const template = TEMPLATES[selectedTemplateIndex] || TEMPLATES[0];
 
     templateNameInput.value = template.name;
 
@@ -934,7 +925,7 @@ function closeTemplateModal() {
 }
 
 function createChecklistFromTemplate() {
-    const template = TEMPLATES[Number(templateSelect.value)] || TEMPLATES[0];
+    const template = TEMPLATES[selectedTemplateIndex] || TEMPLATES[0];
     const checklistName = templateNameInput.value.trim() || template.name;
 
     const newChecklist = {
@@ -1029,13 +1020,8 @@ function saveActiveChecklistNotes() {
     }, 250);
 }
 
-checklistSelect.addEventListener("change", () => {
-    activeChecklistId = checklistSelect.value;
-
-    saveActiveChecklist();
-    renderNotes();
-    renderItems();
-});
+checklistSelectBtn.addEventListener("click", openSelectChecklistModal);
+cancelSelectChecklistBtn.addEventListener("click", closeSelectChecklistModal);
 
 newChecklistButton.addEventListener("click", openTemplateModal);
 
@@ -1090,8 +1076,6 @@ checklistModal.addEventListener("click", (event) => {
         closeChecklistModal();
     }
 });
-
-templateSelect.addEventListener("change", renderTemplatePreview);
 
 cancelTemplateModalButton.addEventListener("click", closeTemplateModal);
 
