@@ -1,3 +1,15 @@
+import { createClientAdapter } from '@spotware-web-team/sdk-external-api';
+import { getAccountInformation, registerEvent } from '@spotware-web-team/sdk';
+
+// Inicializa o cliente para comunicação com o cTrader
+const clientApi = createClientAdapter();
+
+// Exemplo de chamada
+getAccountInformation(clientApi).subscribe({
+    next: (info) => console.log('Informações da conta:', info),
+    error: (err) => console.error('Erro:', err)
+});
+
 const STORAGE_DATA_KEY = "vegaxlr_ctrader_multi_checklists_data";
 const STORAGE_ACTIVE_LIST_KEY = "vegaxlr_ctrader_active_checklist_id";
 const STORAGE_NOTES_OPEN_KEY = "vegaxlr_ctrader_notes_open";
@@ -270,21 +282,41 @@ function saveActiveChecklist() {
 }
 
 /**
- * Resolves the "auto" theme to a concrete value using the host color scheme.
- *
- * Embedded cTrader webviews (Windows, Android, Web) do not reliably honor the
- * CSS prefers-color-scheme media query, so the effective scheme is read here in
- * JavaScript and mapped to an explicit data-theme value.
+ * Resolves the "auto" theme using multiple detection strategies, since
+ * prefers-color-scheme is unreliable across embedded cTrader webviews
+ * (WebView2 on Windows, WebView on Android, and cTrader Web iframe).
  *
  * @returns {string} Either "dark" or "light".
  */
 function resolveAutoTheme() {
-    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        return "dark";
+    // Strategy 1: matchMedia (reliable on macOS WKWebView).
+    const mediaQuery = window.matchMedia
+        ? window.matchMedia("(prefers-color-scheme: dark)")
+        : null;
+
+    if (mediaQuery && typeof mediaQuery.media === "string" && mediaQuery.media !== "not all") {
+        return mediaQuery.matches ? "dark" : "light";
     }
 
+    // Strategy 2: inspect computed background-color of <body> as set by host CSS,
+    // useful when the host injects its own theme class/style before our script runs.
+    try {
+        const computedBg = window.getComputedStyle(document.body).backgroundColor;
+        const rgbMatch = computedBg.match(/\d+/g);
+
+        if (rgbMatch && rgbMatch.length >= 3) {
+            const [r, g, b] = rgbMatch.map(Number);
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            return luminance < 0.5 ? "dark" : "light";
+        }
+    } catch {
+        // Ignore and fall through to default.
+    }
+
+    // Strategy 3: safe default (assume light).
     return "light";
 }
+
 
 /**
  * Reapplies the theme when the host color scheme changes while in auto mode.
@@ -558,13 +590,13 @@ function renderItems() {
 }
 
 /**
- * Attaches a Pointer Events based drag interaction to a row, replacing the
- * native HTML5 Drag and Drop API. Native DnD is unreliable inside desktop
- * embedded webviews (WebView2 on Windows, WKWebView on macOS), while Pointer
- * Events behave consistently across all cTrader host platforms.
+ * Attaches a Pointer Events based drag interaction to a row.
  *
- * The reorder is committed once, on pointer release, using the last row
- * hovered during the drag.
+ * Pointer capture is set on `document` (not on the small handle) so movement
+ * is tracked correctly even when the finger/cursor moves beyond the handle's
+ * bounds — this fixes downward drag failure on Android. A visual "ghost"
+ * clone of the row follows the pointer during the drag for feedback across
+ * all platforms.
  *
  * @param {HTMLElement} handle Drag handle element that starts the interaction.
  * @param {HTMLElement} row Checklist row element being dragged.
@@ -576,14 +608,39 @@ function attachPointerDrag(handle, row, itemId) {
 
         draggedItemId = itemId;
         row.classList.add("dragging");
-        handle.setPointerCapture(event.pointerId);
+
+        // Capture on document to avoid losing pointermove when the finger/cursor
+        // moves outside the small handle's hit area (critical fix for Android).
+        document.body.setPointerCapture
+            ? document.body.setPointerCapture(event.pointerId)
+            : null;
 
         let currentTargetItemId = null;
 
+        // Create a floating ghost clone that follows the pointer.
+        const ghost = row.cloneNode(true);
+        ghost.classList.add("drag-ghost");
+        ghost.style.width = `${row.offsetWidth}px`;
+        document.body.appendChild(ghost);
+
+        const moveGhost = (clientX, clientY) => {
+            ghost.style.left = `${clientX - ghost.offsetWidth / 2}px`;
+            ghost.style.top = `${clientY - 16}px`;
+        };
+
+        moveGhost(event.clientX, event.clientY);
+
         const onPointerMove = (moveEvent) => {
+            moveGhost(moveEvent.clientX, moveEvent.clientY);
+
+            // Temporarily hide the ghost so elementsFromPoint can see the row underneath.
+            ghost.style.visibility = "hidden";
+
             const targetRow = document
                 .elementsFromPoint(moveEvent.clientX, moveEvent.clientY)
                 .find((element) => element.classList && element.classList.contains("checklist-row"));
+
+            ghost.style.visibility = "visible";
 
             if (targetRow && targetRow.dataset.itemId && targetRow.dataset.itemId !== itemId) {
                 currentTargetItemId = targetRow.dataset.itemId;
@@ -591,11 +648,15 @@ function attachPointerDrag(handle, row, itemId) {
         };
 
         const onPointerUp = () => {
-            handle.releasePointerCapture(event.pointerId);
-            handle.removeEventListener("pointermove", onPointerMove);
-            handle.removeEventListener("pointerup", onPointerUp);
-            handle.removeEventListener("pointercancel", onPointerUp);
+            document.body.releasePointerCapture
+                ? document.body.releasePointerCapture(event.pointerId)
+                : null;
 
+            document.removeEventListener("pointermove", onPointerMove);
+            document.removeEventListener("pointerup", onPointerUp);
+            document.removeEventListener("pointercancel", onPointerUp);
+
+            ghost.remove();
             draggedItemId = null;
             row.classList.remove("dragging");
 
@@ -604,11 +665,12 @@ function attachPointerDrag(handle, row, itemId) {
             }
         };
 
-        handle.addEventListener("pointermove", onPointerMove);
-        handle.addEventListener("pointerup", onPointerUp);
-        handle.addEventListener("pointercancel", onPointerUp);
+        document.addEventListener("pointermove", onPointerMove);
+        document.addEventListener("pointerup", onPointerUp);
+        document.addEventListener("pointercancel", onPointerUp);
     });
 }
+
 
 function reorderItems(sourceItemId, targetItemId) {
     if (!sourceItemId || !targetItemId || sourceItemId === targetItemId) {

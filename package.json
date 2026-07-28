@@ -1,0 +1,27 @@
+{
+  "name": "ctrader-checklist-plugin",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VegaXLR/ctrader-checklist-plugin.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/VegaXLR/ctrader-checklist-plugin/issues"
+  },
+  "homepage": "https://github.com/VegaXLR/ctrader-checklist-plugin#readme",
+  "dependencies": {
+    "@spotware-web-team/sdk": "^0.0.18",
+    "@spotware-web-team/sdk-external-api": "^0.0.6",
+    "@veksa/logger": "^1.0.14",
+    "rxjs": "^7.8.2"
+  }
+}

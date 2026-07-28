@@ -126,11 +126,17 @@ input {
     border-radius: 0;
 
     box-shadow: none;
-    overflow: hidden;
+
+    /* overflow: hidden removed — it was clipping the native <select>
+       popup on Android WebView, preventing the dropdown from opening.
+       Scroll clipping is still handled locally by .checklist-items
+       (overflow-y: auto), so removing it here is safe. */
+    overflow: visible;
 
     transition:
         background 0.2s ease;
 }
+
 
 .checklist-card::after {
     content: "";
@@ -531,6 +537,18 @@ input {
 
 .checklist-row.dragging {
     opacity: 0.45;
+}
+
+.drag-ghost {
+    position: fixed;
+    z-index: 999;
+
+    pointer-events: none;
+
+    opacity: 0.85;
+    box-shadow: 0 4px 12px var(--shadow);
+    border-radius: 6px;
+    background: var(--card-bg);
 }
 
 .drag-handle {
