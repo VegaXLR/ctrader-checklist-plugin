@@ -490,37 +490,14 @@ function renderItems() {
             item.optional ? "optional" : ""
         ].join(" ").trim();
 
-        row.draggable = true;
         row.dataset.itemId = item.id;
-
-        row.addEventListener("dragstart", (event) => {
-            draggedItemId = item.id;
-            row.classList.add("dragging");
-            event.dataTransfer.effectAllowed = "move";
-            // Required by desktop webviews (WebView2/WKWebView) to start a valid drag session.
-            event.dataTransfer.setData("text/plain", item.id);
-        });
-
-        row.addEventListener("dragend", () => {
-            draggedItemId = null;
-            row.classList.remove("dragging");
-        });
-
-        row.addEventListener("dragover", (event) => {
-            event.preventDefault();
-            // Explicit dropEffect is needed for the drop event to fire on desktop webviews.
-            event.dataTransfer.dropEffect = "move";
-        });
-
-        row.addEventListener("drop", (event) => {
-            event.preventDefault();
-            reorderItems(draggedItemId, item.id);
-        });
 
         const dragHandle = document.createElement("div");
         dragHandle.className = "drag-handle";
         dragHandle.title = "Drag to reorder";
         dragHandle.textContent = "⋮⋮";
+
+        attachPointerDrag(dragHandle, row, item.id);
 
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
@@ -578,6 +555,59 @@ function renderItems() {
     });
 
     checklistItemsElement.appendChild(createAddButtonRow());
+}
+
+/**
+ * Attaches a Pointer Events based drag interaction to a row, replacing the
+ * native HTML5 Drag and Drop API. Native DnD is unreliable inside desktop
+ * embedded webviews (WebView2 on Windows, WKWebView on macOS), while Pointer
+ * Events behave consistently across all cTrader host platforms.
+ *
+ * The reorder is committed once, on pointer release, using the last row
+ * hovered during the drag.
+ *
+ * @param {HTMLElement} handle Drag handle element that starts the interaction.
+ * @param {HTMLElement} row Checklist row element being dragged.
+ * @param {string} itemId Id of the checklist item represented by the row.
+ */
+function attachPointerDrag(handle, row, itemId) {
+    handle.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+
+        draggedItemId = itemId;
+        row.classList.add("dragging");
+        handle.setPointerCapture(event.pointerId);
+
+        let currentTargetItemId = null;
+
+        const onPointerMove = (moveEvent) => {
+            const targetRow = document
+                .elementsFromPoint(moveEvent.clientX, moveEvent.clientY)
+                .find((element) => element.classList && element.classList.contains("checklist-row"));
+
+            if (targetRow && targetRow.dataset.itemId && targetRow.dataset.itemId !== itemId) {
+                currentTargetItemId = targetRow.dataset.itemId;
+            }
+        };
+
+        const onPointerUp = () => {
+            handle.releasePointerCapture(event.pointerId);
+            handle.removeEventListener("pointermove", onPointerMove);
+            handle.removeEventListener("pointerup", onPointerUp);
+            handle.removeEventListener("pointercancel", onPointerUp);
+
+            draggedItemId = null;
+            row.classList.remove("dragging");
+
+            if (currentTargetItemId) {
+                reorderItems(itemId, currentTargetItemId);
+            }
+        };
+
+        handle.addEventListener("pointermove", onPointerMove);
+        handle.addEventListener("pointerup", onPointerUp);
+        handle.addEventListener("pointercancel", onPointerUp);
+    });
 }
 
 function reorderItems(sourceItemId, targetItemId) {

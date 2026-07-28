@@ -544,6 +544,7 @@ input {
 
     cursor: grab;
     user-select: none;
+    touch-action: none;
 }
 
 .checklist-row input[type="checkbox"] {
