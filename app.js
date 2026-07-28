@@ -171,6 +171,8 @@ let pendingConfirmAction = null;
 let noticeTimeoutId = null;
 let selectedTemplateIndex = 0;
 
+let isReorderingItems = false;
+
 function generateId() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
@@ -558,10 +560,6 @@ function attachPointerDrag(surface, row, itemId) {
             return;
         }
 
-        if (event.target.closest("input, button, textarea, select")) {
-            return;
-        }
-
         const activeChecklist = getActiveChecklist();
 
         if (!activeChecklist || activeChecklist.items.length < 2) {
@@ -572,16 +570,26 @@ function attachPointerDrag(surface, row, itemId) {
         event.stopPropagation();
 
         closeAllDropdowns();
+        enableReorderLock();
 
         const pointerId = event.pointerId;
         const startX = event.clientX;
         const startY = event.clientY;
 
-        let dragging = false;
         let ghost = null;
         let currentTargetItemId = null;
         let lastClientX = startX;
         let lastClientY = startY;
+        let didMove = false;
+
+        draggedItemId = itemId;
+        row.classList.add("dragging");
+
+        try {
+            surface.setPointerCapture(pointerId);
+        } catch {
+            // Some embedded Android WebViews may fail pointer capture.
+        }
 
         const createGhost = () => {
             ghost = row.cloneNode(true);
@@ -600,26 +608,6 @@ function attachPointerDrag(surface, row, itemId) {
 
             ghost.style.left = `${clientX - ghost.offsetWidth / 2}px`;
             ghost.style.top = `${clientY - ghost.offsetHeight / 2}px`;
-        };
-
-        const startDrag = () => {
-            if (dragging) {
-                return;
-            }
-
-            dragging = true;
-            draggedItemId = itemId;
-
-            row.classList.add("dragging");
-
-            try {
-                surface.setPointerCapture(pointerId);
-            } catch {
-                // Some embedded Android webviews may fail pointer capture.
-            }
-
-            createGhost();
-            moveGhost(lastClientX, lastClientY);
         };
 
         const updateTargetFromPoint = (clientX, clientY) => {
@@ -645,10 +633,16 @@ function attachPointerDrag(surface, row, itemId) {
             }
         };
 
+        createGhost();
+        moveGhost(startX, startY);
+
         const onPointerMove = (moveEvent) => {
             if (moveEvent.pointerId !== pointerId) {
                 return;
             }
+
+            moveEvent.preventDefault();
+            moveEvent.stopPropagation();
 
             lastClientX = moveEvent.clientX;
             lastClientY = moveEvent.clientY;
@@ -656,16 +650,9 @@ function attachPointerDrag(surface, row, itemId) {
             const deltaX = Math.abs(lastClientX - startX);
             const deltaY = Math.abs(lastClientY - startY);
 
-            if (!dragging && (deltaX > 4 || deltaY > 4)) {
-                startDrag();
+            if (deltaX > 2 || deltaY > 2) {
+                didMove = true;
             }
-
-            if (!dragging) {
-                return;
-            }
-
-            moveEvent.preventDefault();
-            moveEvent.stopPropagation();
 
             moveGhost(lastClientX, lastClientY);
             updateTargetFromPoint(lastClientX, lastClientY);
@@ -683,7 +670,7 @@ function attachPointerDrag(surface, row, itemId) {
             try {
                 surface.releasePointerCapture(pointerId);
             } catch {
-                // Safe fallback for Android webviews.
+                // Safe fallback for Android WebViews.
             }
 
             if (ghost) {
@@ -694,19 +681,46 @@ function attachPointerDrag(surface, row, itemId) {
             row.classList.remove("dragging");
             draggedItemId = null;
 
-            if (dragging && currentTargetItemId) {
+            disableReorderLock();
+
+            if (didMove && currentTargetItemId) {
                 reorderItems(itemId, currentTargetItemId);
             }
 
-            dragging = false;
             currentTargetItemId = null;
+            didMove = false;
         };
 
-        document.addEventListener("pointermove", onPointerMove, { passive: false });
+        document.addEventListener("pointermove", onPointerMove, {
+            passive: false
+        });
+
         document.addEventListener("pointerup", finishDrag);
         document.addEventListener("pointercancel", finishDrag);
-    }, { passive: false });
+    }, {
+        passive: false
+    });
 }
+
+function enableReorderLock() {
+    isReorderingItems = true;
+    document.documentElement.classList.add("is-reordering");
+}
+
+function disableReorderLock() {
+    isReorderingItems = false;
+    document.documentElement.classList.remove("is-reordering");
+}
+
+function preventNativeTouchMoveDuringReorder(event) {
+    if (!isReorderingItems) {
+        return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+}
+
 
 function reorderItems(sourceItemId, targetItemId) {
     if (!sourceItemId || !targetItemId || sourceItemId === targetItemId) {
@@ -975,8 +989,16 @@ function toggleTemplateDropdown() {
     }
 }
 
-function renderTemplateOptions() {
-    selectedTemplateIndex = 0;
+/**
+ * Renders the custom template dropdown.
+ *
+ * @param {boolean} resetSelection When true, resets to the first template.
+ */
+function renderTemplateOptions(resetSelection = false) {
+    if (resetSelection) {
+        selectedTemplateIndex = 0;
+    }
+
     templateDropdownMenu.innerHTML = "";
 
     TEMPLATES.forEach((template, index) => {
@@ -991,11 +1013,19 @@ function renderTemplateOptions() {
             option.setAttribute("aria-selected", "true");
         }
 
-        option.addEventListener("click", () => {
+        option.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+
+        option.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
             selectedTemplateIndex = index;
 
             closeTemplateDropdown();
-            renderTemplateOptions();
+            renderTemplateOptions(false);
             renderTemplatePreview();
         });
 
@@ -1023,9 +1053,8 @@ function renderTemplatePreview() {
     templatePreview.innerHTML = `<ul>${itemsHtml}</ul>`;
 }
 
-
 function openTemplateModal() {
-    renderTemplateOptions();
+    renderTemplateOptions(true);
 
     templateModal.classList.add("visible");
     templateModal.setAttribute("aria-hidden", "false");
