@@ -135,7 +135,7 @@ const TEMPLATES = [
         items: [
             "Risk per trade is within plan",
             "Position size is calculated",
-            "Stop loss is placed before entry",
+            "Stop loss is defined",
             "Reward-to-risk is acceptable",
             "Total exposure is acceptable",
             "No revenge trading",
